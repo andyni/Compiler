@@ -63,24 +63,24 @@ ws = [\ \t];
 <INITIAL> "," => (Tokens.COMMA(yypos, yypos+1));
 
 <INITIAL> \n	=> (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
-<INITIAL> [ws]+ => (continue());
+<INITIAL> {ws}+ => (continue());
 
-<INITIAL> [alpha][a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
+<INITIAL> {alpha}[a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
 <INITIAL> {digit}+             => (Tokens.INT(Option.valOf(Int.fromString yytext), yypos, yypos+size(yytext)));
 
 <INITIAL> "\"" => (YYBEGIN STRING; stringTokenContent:=""; stringStartPosition:=yypos; continue());
 <STRING> "\"" => (YYBEGIN INITIAL; Tokens.STRING(!stringTokenContent, !stringStartPosition, yypos+size(!stringTokenContent)));
 <STRING> "\\n" => (stringTokenContent := !stringTokenContent ^ "\n"; continue());
 <STRING> "\\t" => (stringTokenContent := !stringTokenContent ^ "\t"; continue());
-<STRING> "\\^"{alpha} => (stringTokenContent := !stringTokenContent ^ "control"; continue());
-<STRING> "\\"{digit}{3} => (stringTokenContent := !stringTokenContent ^ "ascii"; continue());
+<STRING> "\\^"[@A-Z\[\\\]\^_] => (stringTokenContent := !stringTokenContent ^ yytext; continue());
+<STRING> "\\"{digit}{3} => (stringTokenContent := !stringTokenContent ^ String.str (Char.chr (Option.valOf(Int.fromString (String.substring (yytext, 1, size(yytext)-1))))); continue());
 <STRING> "\\\"" => (stringTokenContent := !stringTokenContent ^ "\""; continue());
 <STRING> "\\\\" => (stringTokenContent := !stringTokenContent ^ "\\"; continue());
 <STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue()); 
 
-<INITIAL> "(*" => (YYBEGIN COMMENT; commentCount := 0; continue());
-<COMMENT> "*)" => ( if !commentCount=0 then YYBEGIN INITIAL else commentCount := !commentCount-1 ; continue());
-<COMMENT> "(*" => (commentCount := !commentCount + 1; continue());
+<INITIAL> "/*" => (YYBEGIN COMMENT; commentCount := 0; continue());
+<COMMENT> "*/" => ( if !commentCount=0 then YYBEGIN INITIAL else commentCount := !commentCount-1 ; continue());
+<COMMENT> "/*" => (commentCount := !commentCount + 1; continue());
 <COMMENT> . => (continue());
 
 <INITIAL> .    => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
