@@ -9,6 +9,7 @@ fun eof() = let val pos = hd(!linePos) in Tokens.EOF(pos,pos) end
 
 val stringTokenContent = ref ""
 val stringStartPosition = ref 0
+val commentCount = ref 0
 
 %% 
 
@@ -76,6 +77,11 @@ ws = [\ \t];
 <STRING> "\\\"" => (stringTokenContent := !stringTokenContent ^ "\""; continue());
 <STRING> "\\\\" => (stringTokenContent := !stringTokenContent ^ "\\"; continue());
 <STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue()); 
+
+<INITIAL> "(*" => (YYBEGIN COMMENT; commentCount := 0; continue());
+<COMMENT> "*)" => ( if !commentCount=0 then YYBEGIN INITIAL else commentCount := !commentCount-1 ; continue());
+<COMMENT> "(*" => (commentCount := !commentCount + 1; continue());
+<COMMENT> . => (continue());
 
 <INITIAL> .    => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
 
