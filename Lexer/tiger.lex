@@ -73,7 +73,12 @@ ws = [\ \t];
 <STRING> "\\n" => (stringTokenContent := !stringTokenContent ^ "\n"; continue());
 <STRING> "\\t" => (stringTokenContent := !stringTokenContent ^ "\t"; continue());
 <STRING> "\\^"[@A-Z\[\\\]\^_] => (stringTokenContent := !stringTokenContent ^ yytext; continue());
-<STRING> "\\"{digit}{3} => (stringTokenContent := !stringTokenContent ^ String.str (Char.chr (Option.valOf(Int.fromString (String.substring (yytext, 1, size(yytext)-1))))); continue());
+<STRING> "\\"{digit}{3} => (let val ascii = Option.valOf(Int.fromString (String.substring (yytext, 1, size(yytext)-1))) 
+			    in 
+				if (ascii < 128) 
+				then stringTokenContent := !stringTokenContent ^ String.str (Char.chr ascii) 
+				else ErrorMsg.error yypos ("not an ascii character " ^ yytext)
+		            end; continue());
 <STRING> "\\\"" => (stringTokenContent := !stringTokenContent ^ "\""; continue());
 <STRING> "\\\\" => (stringTokenContent := !stringTokenContent ^ "\\"; continue());
 <STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue()); 
