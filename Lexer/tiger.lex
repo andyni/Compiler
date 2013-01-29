@@ -9,29 +9,36 @@ fun eof() = let val pos = hd(!linePos) in Tokens.EOF(pos,pos) end
 
 
 %% 
-%structure TigerLex
-digits=[0-9]+;
+
+%s STRING COMMENT; 
+
+alpha=[A-Za-z];
+digit=[0-9];
+ws = [\ \t];
+
 %%
 \n	=> (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
-[\ \t]+ => (continue());
-type => (Tokens.TYPE(yypos, yypos+2));
-var => (Tokens.VAR(yypos, yypos+3));
-function => (Tokens.VAR(yypos, yypos+8));
-break => (Tokens.BREAK(yypos, yypos+5));
-of => (Tokens.OF(yypos, yypos+2));
-end => (Tokens.END(yypos, yypos+3));
-in => (Tokens.IN(yypos, yypos+2));
-nil => (Tokens.NIL(yypos, yypos+2));
-let => (Tokens.LET(yypos, yypos+2));
-do => (Tokens.DO(yypos, yypos+2));
-to => (Tokens.TO(yypos, yypos+2));
-for => (Tokens.FOR(yypos, yypos+3));
-while => (Tokens.WHILE(yypos, yypos+5));
-else => (Tokens.ELSE(yypos, yypos+4));
-then => (Tokens.THEN(yypos,yypos+4));
-if => (Tokens.IF(yypos,yypos+2));
-array => (Tokens.ARRAY(yypos, yypos+5));
-assign => (Tokens.ASSIGN(yypos, yypos+6));
+[ws]+ => (continue());
+
+"type" => (Tokens.TYPE(yypos, yypos+4));
+"var" => (Tokens.VAR(yypos, yypos+3));
+"function" => (Tokens.FUNCTION(yypos, yypos+8));
+"break" => (Tokens.BREAK(yypos, yypos+5));
+"of" => (Tokens.OF(yypos, yypos+2));
+"end" => (Tokens.END(yypos, yypos+3));
+"in" => (Tokens.IN(yypos, yypos+2));
+"nil" => (Tokens.NIL(yypos, yypos+3));
+"let" => (Tokens.LET(yypos, yypos+3));
+"do" => (Tokens.DO(yypos, yypos+2));
+"to" => (Tokens.TO(yypos, yypos+2));
+"for" => (Tokens.FOR(yypos, yypos+3));
+"while" => (Tokens.WHILE(yypos, yypos+5));
+"else" => (Tokens.ELSE(yypos, yypos+4));
+"then" => (Tokens.THEN(yypos,yypos+4));
+"if" => (Tokens.IF(yypos,yypos+2));
+"array" => (Tokens.ARRAY(yypos, yypos+5));
+
+":=" => (Tokens.ASSIGN(yypos, yypos+2));
 "|" => (Tokens.OR(yypos, yypos+1));
 "&" => (Tokens.AND(yypos, yypos+1));
 ">=" => (Tokens.GE(yypos, yypos+2));
@@ -54,6 +61,10 @@ assign => (Tokens.ASSIGN(yypos, yypos+6));
 ";" => (Tokens.SEMICOLON(yypos, yypos+1));
 ":" => (Tokens.COLON(yypos, yypos+1));
 "," => (Tokens.COMMA(yypos, yypos+1));
-[a-z][a-z0-9]* => (Tokens.ID(yytext,yypos,yypos+size yytext));
+
+
+[alpha][a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
+{digit}+             => (Tokens.INT(Option.valOf(Int.fromString yytext), yypos, yypos+size(yytext)));
+
 .       => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
 
