@@ -13,7 +13,7 @@ val commentCount = ref 0
 
 %% 
 
-%s STRING COMMENT; 
+%s STRING COMMENT FORMATTING; 
 
 alpha=[A-Za-z];
 digit=[0-9];
@@ -68,25 +68,32 @@ ws = [\ \t];
 <INITIAL> {alpha}[a-zA-Z0-9_]* => (Tokens.ID(yytext, yypos, yypos+size(yytext)));
 <INITIAL> {digit}+             => (Tokens.INT(Option.valOf(Int.fromString yytext), yypos, yypos+size(yytext)));
 
-<INITIAL> "\"" => (YYBEGIN STRING; stringTokenContent:=""; stringStartPosition:=yypos; continue());
-<STRING> "\"" => (YYBEGIN INITIAL; Tokens.STRING(!stringTokenContent, !stringStartPosition, yypos+size(!stringTokenContent)));
-<STRING> "\\n" => (stringTokenContent := !stringTokenContent ^ "\n"; continue());
-<STRING> "\\t" => (stringTokenContent := !stringTokenContent ^ "\t"; continue());
-<STRING> "\\^"[@A-Z\[\\\]\^_] => (stringTokenContent := !stringTokenContent ^ yytext; continue());
-<STRING> "\\"{digit}{3} => (let val ascii = Option.valOf(Int.fromString (String.substring (yytext, 1, size(yytext)-1))) 
+<INITIAL> \" => (YYBEGIN STRING; stringTokenContent:=""; stringStartPosition:=yypos; continue());
+<STRING> \" => (YYBEGIN INITIAL; Tokens.STRING(!stringTokenContent, !stringStartPosition, yypos+size(!stringTokenContent)));
+
+<STRING> \\ => (YYBEGIN FORMATTING; continue());
+<FORMATTING> \\ => (YYBEGIN STRING; continue());
+<FORMATTING> [\n\r] => (lineNum := !lineNum+1; linePos := yypos :: !linePos; continue());
+<FORMATTING> [\ \t\f]+ => (continue());
+<FORMATTING> .    => (ErrorMsg.error yypos ("Illegal character in format region: " ^ yytext); continue());
+
+<STRING> \\n => (stringTokenContent := !stringTokenContent ^ "\n"; continue());
+<STRING> \\t => (stringTokenContent := !stringTokenContent ^ "\t"; continue());
+<STRING> \\{digit}{3} => (let val ascii = Option.valOf(Int.fromString (String.substring (yytext, 1, size(yytext)-1))) 
 			    in 
 				if (ascii < 128) 
 				then stringTokenContent := !stringTokenContent ^ String.str (Char.chr ascii) 
 				else ErrorMsg.error yypos ("not an ascii character " ^ yytext)
 		            end; continue());
-<STRING> "\\\"" => (stringTokenContent := !stringTokenContent ^ "\""; continue());
-<STRING> "\\\\" => (stringTokenContent := !stringTokenContent ^ "\\"; continue());
-<STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue()); 
+<STRING> \\\" => (stringTokenContent := !stringTokenContent ^ "\""; continue());
+<STRING> \\\\ => (stringTokenContent := !stringTokenContent ^ "\\"; continue());
+<STRING> \n => (ErrorMsg.error yypos ("Unclosed string."); continue());
+<STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue());
 
 <INITIAL> "/*" => (YYBEGIN COMMENT; commentCount := 0; continue());
 <COMMENT> "*/" => ( if !commentCount=0 then YYBEGIN INITIAL else commentCount := !commentCount-1 ; continue());
 <COMMENT> "/*" => (commentCount := !commentCount + 1; continue());
 <COMMENT> . => (continue());
 
-<INITIAL> .    => (ErrorMsg.error yypos ("illegal character " ^ yytext); continue());
+<INITIAL> .    => (ErrorMsg.error yypos ("Illegal character: " ^ yytext); continue());
 
