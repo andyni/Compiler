@@ -5,11 +5,11 @@ val lineNum = ErrorMsg.lineNum
 val linePos = ErrorMsg.linePos
 fun err(p1,p2) = ErrorMsg.error p1
 
-fun eof() = let val pos = hd(!linePos) in Tokens.EOF(pos,pos) end
-
 val stringTokenContent = ref ""
 val stringStartPosition = ref 0
 val commentCount = ref 0
+fun eof() = let val pos = hd(!linePos) in (if (!commentCount=0) then () else ErrorMsg.error pos ("Unclosed comment"); Tokens.EOF(pos,pos)) end
+
 
 %% 
 
@@ -90,9 +90,10 @@ ws = [\ \t];
 <STRING> \n => (ErrorMsg.error yypos ("Unclosed string."); continue());
 <STRING> .     => (stringTokenContent := !stringTokenContent ^ yytext; continue());
 
-<INITIAL> "/*" => (YYBEGIN COMMENT; commentCount := 0; continue());
-<COMMENT> "*/" => ( if !commentCount=0 then YYBEGIN INITIAL else commentCount := !commentCount-1 ; continue());
+<INITIAL> "/*" => (YYBEGIN COMMENT; commentCount := 1; continue());
+<COMMENT> "*/" => (commentCount := !commentCount-1; if !commentCount=0 then YYBEGIN INITIAL else () ; continue());
 <COMMENT> "/*" => (commentCount := !commentCount + 1; continue());
+<COMMENT> \n => (lineNum := !lineNum+1; continue());
 <COMMENT> . => (continue());
 
 <INITIAL> .    => (ErrorMsg.error yypos ("Illegal character: " ^ yytext); continue());
