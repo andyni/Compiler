@@ -1,5 +1,7 @@
 type pos = int
-type lexresult = Tokens.token
+type svalue = Tokens.svalue
+type ('a, 'b) token = ('a, 'b) Tokens.token
+type lexresult = (svalue,pos) token
 
 val lineNum = ErrorMsg.lineNum
 val linePos = ErrorMsg.linePos
@@ -12,7 +14,7 @@ fun eof() = let val pos = hd(!linePos) in (if (!commentCount=0) then () else Err
 
 
 %% 
-
+%header (functor TigerLexFun(structure Token: Tiger_TOKENS));
 %s STRING COMMENT FORMATTING; 
 
 alpha=[A-Za-z];
