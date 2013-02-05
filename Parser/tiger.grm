@@ -11,7 +11,7 @@
   | BREAK | NIL
   | FUNCTION | VAR | TYPE 
 
-%nonterm  exp | program
+%nonterm  exp | program | tydec | ty | tyfields | typeid
 
 %pos int
 %verbose
@@ -32,12 +32,90 @@
 
 %%
 
-(* This is a skeleton grammar file, meant to illustrate what kind of
- * declarations are necessary above the %% mark.  Students are expected
- *  to replace the two dummy productions below with an actual grammar. 
- *)
-
-program	: exp				()
+program	: exp ()
 
 	
-exp: 			()
+exp: lvalue ()
+   | NIL ()
+   | LPAREN sequence RPAREN ()
+   | INT ()
+   | STRING ()
+   | MINUS INT ()
+   | ID LPAREN funlist RPAREN ()
+   | intexp ()
+   | boolop ()
+   | record ()
+   | typeid LBRACK exp RBRACK OF exp ()
+   | lvalue ASSIGN exp ()
+   | IF compexp THEN exp ELSE exp ()
+   | IF compexp THEN exp ()
+   | WHILE compexp DO exp ()
+   | FOR ID ASSIGN exp TO exp DO exp ()
+   | BREAK ()
+   | LET decs IN sequence END ()
+   | LPAREN exp RPAREN () 
+
+decs : dec dec ()
+     | () 
+
+dec : tydec ()
+     | vardec ()
+     | fundec ()
+
+sequence : exp () 
+         | exp SEMICOLON exp ()
+         | ()
+
+funlist : exp () 
+         | exp COMMA exp ()
+         | ()
+
+intexp : intexp PLUS intexp ()
+	 | intexp MINUS intexp ()
+	 | intexp TIMES intexp ()
+	 | intexp DIVIDE intexp ()       
+	 | INT ()
+
+compexp : comptype EQ comptype ()
+	 | comptype NEQ comptype ()
+	 | comptype LE comptype ()
+	 | comptype LT comptype ()
+	 | comptype GE comptype ()
+	 | comptype GT comptype ()
+         | ID EQ ID ()
+	 | ID NEQ ID ()
+         | intexp ()
+
+boolop : compexp AND compexp ()
+	 | compexp OR compexp ()
+
+comptype : STRING ()
+	 | intexp ()
+
+tydec : TYPE typeid EQ ty () 
+
+ty : typeid ()
+   | LBRACE tyfields RBRACE () 
+   | ARRAY OF typeid ()
+
+record : ID LBRACE recordlist RBRACE ()
+
+recordlist : ID EQ exp () 
+           | recordlist COMMA recordlist ()
+           | ()
+
+tyfields : ID COLON typeid () 
+         | ID COLON typeid COMMA tyfields ()
+         | ()
+
+typeid : ID ()
+
+vardec : VAR ID ASSIGN exp ()
+       | VAR ID COLON typeid ASSIGN exp ()
+
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ()
+       | FUNCTION ID LPAREN tyfields RPAREN COLON typeid EQ exp ()
+
+lvalue : ID ()
+       | lvalue DOT ID ()
+       | lvalue LBRACK exp RBRACK ()  
