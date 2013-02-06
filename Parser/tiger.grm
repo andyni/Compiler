@@ -11,7 +11,7 @@
   | BREAK | NIL
   | FUNCTION | VAR | TYPE 
 
-%nonterm  exp | program | tydec | ty | tyfields | typeid
+%nonterm  exp | program | decs | dec | sequence | funlist | intexp | compexp | boolop | comptype | tydec | ty | record | recordlist | tyfields | typeid | vardec | fundec | lvalue
 
 %pos int
 %verbose
@@ -33,7 +33,6 @@
 %%
 
 program	: exp ()
-
 	
 exp: lvalue ()
    | NIL ()
