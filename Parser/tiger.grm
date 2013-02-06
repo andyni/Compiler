@@ -30,6 +30,10 @@
 %value INT (1)
 %value STRING ("")
 
+%left PLUS MINUS
+%left TIMES DIVIDE
+
+
 %%
 
 program	: exp ()
@@ -37,14 +41,13 @@ program	: exp ()
 exp: lvalue ()
    | NIL ()
    | LPAREN sequence RPAREN ()
-   | INT ()
+   | intexp ()
    | STRING ()
    | MINUS INT ()
    | ID LPAREN funlist RPAREN ()
-   | intexp ()
    | boolop ()
    | record ()
-   | typeid LBRACK exp RBRACK OF exp ()
+   | ID LBRACK exp RBRACK OF exp ()
    | lvalue ASSIGN exp ()
    | IF compexp THEN exp ELSE exp ()
    | IF compexp THEN exp ()
@@ -91,11 +94,11 @@ boolop : compexp AND compexp ()
 comptype : STRING ()
 	 | intexp ()
 
-tydec : TYPE typeid EQ ty () 
+tydec : TYPE ID EQ ty () 
 
-ty : typeid ()
+ty : ID ()
    | LBRACE tyfields RBRACE () 
-   | ARRAY OF typeid ()
+   | ARRAY OF ID ()
 
 record : ID LBRACE recordlist RBRACE ()
 
@@ -103,14 +106,12 @@ recordlist : ID EQ exp ()
            | recordlist COMMA recordlist ()
            | ()
 
-tyfields : ID COLON typeid () 
-         | ID COLON typeid COMMA tyfields ()
+tyfields : ID COLON ID () 
+         | ID COLON ID COMMA tyfields ()
          | ()
 
-typeid : ID ()
-
 vardec : VAR ID ASSIGN exp ()
-       | VAR ID COLON typeid ASSIGN exp ()
+       | VAR ID COLON ID ASSIGN exp ()
 
 fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ()
        | FUNCTION ID LPAREN tyfields RPAREN COLON typeid EQ exp ()
