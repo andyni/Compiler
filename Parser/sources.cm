@@ -1,6 +1,7 @@
 Group is
 
 absyn.sml
+prabsyn.sml
 table.sig
 table.sml
 symbol.sml
