@@ -11,7 +11,9 @@
   | BREAK | NIL
   | FUNCTION | VAR | TYPE 
 
-%nonterm  exp | program | decs | dec | sequence | funlist | intexp | compexp | boolop | comptype | tydec | ty | record | recordlist | tyfields | typeid | vardec | fundec | lvalue
+%nonterm  exp | program | decs | dec | sequence | funlist | intexp | ifstmt
+ | compexp | boolop | comptype | tydec | ty | record | recordlist |
+ tyfields | vardec | fundec | lvalue | evalsequence
 
 %pos int
 %verbose
@@ -30,8 +32,10 @@
 %value INT (1)
 %value STRING ("")
 
+%nonassoc ID THEN
 %left PLUS MINUS
 %left TIMES DIVIDE
+%right LBRACK COMMA ELSE
 
 
 %%
@@ -40,7 +44,7 @@ program	: exp ()
 	
 exp: lvalue ()
    | NIL ()
-   | LPAREN sequence RPAREN ()
+   | LPAREN evalsequence RPAREN ()
    | intexp ()
    | STRING ()
    | MINUS INT ()
@@ -49,13 +53,13 @@ exp: lvalue ()
    | record ()
    | ID LBRACK exp RBRACK OF exp ()
    | lvalue ASSIGN exp ()
-   | IF compexp THEN exp ELSE exp ()
-   | IF compexp THEN exp ()
    | WHILE compexp DO exp ()
    | FOR ID ASSIGN exp TO exp DO exp ()
    | BREAK ()
    | LET decs IN sequence END ()
    | LPAREN exp RPAREN () 
+   | IF compexp THEN exp ()
+   | IF compexp THEN exp ELSE exp ()
 
 decs : dec dec ()
      | () 
@@ -64,9 +68,12 @@ dec : tydec ()
      | vardec ()
      | fundec ()
 
-sequence : exp () 
-         | exp SEMICOLON exp ()
+sequence : exp ()
+         | sequence SEMICOLON exp ()
          | ()
+
+evalsequence : exp SEMICOLON exp ()
+             | evalsequence SEMICOLON exp()
 
 funlist : exp () 
          | exp COMMA exp ()
@@ -102,7 +109,7 @@ ty : ID ()
 
 record : ID LBRACE recordlist RBRACE ()
 
-recordlist : ID EQ exp () 
+recordlist : ID EQ exp ()
            | recordlist COMMA recordlist ()
            | ()
 
@@ -114,7 +121,7 @@ vardec : VAR ID ASSIGN exp ()
        | VAR ID COLON ID ASSIGN exp ()
 
 fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ()
-       | FUNCTION ID LPAREN tyfields RPAREN COLON typeid EQ exp ()
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ()
 
 lvalue : ID ()
        | lvalue DOT ID ()
