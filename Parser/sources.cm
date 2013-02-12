@@ -7,7 +7,7 @@ table.sml
 symbol.sml
 tiger.lex
 errormsg.sml
-parsetest.sml
+parse.sml
 tiger.grm
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm

@@ -14,9 +14,12 @@ structure A = Absyn
   | FUNCTION | VAR | TYPE
   | UMINUS 
 
-%nonterm  exp | program | decs | dec | sequence | funlist | intexp | ifstmt
- | compexp | boolop | comptype | tydec | ty | record | recordlist |
- tyfields | vardec | fundec | lvalue | evalsequence
+%nonterm  exp of A.exp | program of A.exp | decs of A.dec list | dec of A.dec |
+sequence of A.exp  | funlist of A.exp list | intexp of A.exp | ifstmt of A.exp
+ | compexp of A.exp | boolop of A.exp | comptype of A.exp | tydec of A.dec
+ | ty of A.ty | record of A.exp | recordlist of (A.symbol * A.exp * A.pos) list  |
+ tyfields of A.field list | vardec of A.dec | fundec of A.dec |
+ lvalue of A.var | evalsequence of (A.exp * A.pos) list
 
 %pos int
 %verbose
@@ -50,27 +53,28 @@ structure A = Absyn
 
 program	: exp (exp)
 	
-exp: lvalue (lvalue)
+exp: lvalue (A.VarExp(lvalue))
    | NIL (A.NilExp)
    | LPAREN evalsequence RPAREN (A.SeqExp(evalsequence))
    | intexp (intexp)
    | STRING (A.StringExp(STRING,defaultPos))
-   | ID LPAREN funlist RPAREN (A.CallExp({func=ID, args=funlist, pos=ID1left}))
+   | ID LPAREN funlist RPAREN (A.CallExp({func=Symbol.symbol(ID), args=funlist, pos=IDleft}))
    | boolop (boolop)
    | record (record)
-   | ID LBRACK exp RBRACK OF exp (A.ArrayExp({typ=ID, size=exp1, init=exp2,
+   | ID LBRACK exp RBRACK OF exp (A.ArrayExp({typ=Symbol.symbol(ID), size=exp1, init=exp2,
    pos=ID1left}))
    | lvalue ASSIGN exp (A.AssignExp({var=lvalue,exp=exp,pos=lvalue1left}))
    | WHILE compexp DO exp (A.WhileExp({test=compexp,body=exp,pos=WHILE1left}))
-   | FOR ID ASSIGN exp TO exp DO exp (A.ForExp({var=ID,escape=true,lo=exp1,hi=exp2,body=exp3,pos=FOR1left}))
+   | FOR ID ASSIGN exp TO exp DO exp
+   (A.ForExp({var=Symbol.symbol(ID),escape=ref true,lo=exp1,hi=exp2,body=exp3,pos=defaultPos}))
    | BREAK (A.BreakExp(defaultPos))
-   | LET decs IN sequence END (A.LetExp({decs=decs,body=sequence,pos=LET1left}))
+   | LET decs IN sequence END (A.LetExp({decs=decs,body=sequence,pos=defaultPos}))
    | LPAREN exp RPAREN (exp) 
-   | IF compexp THEN exp (A.IfExp({test=compexp,then'=exp,else'=NONE,pos=IF1left}))
-   | IF compexp THEN exp ELSE exp (A.IfExp({test=compexp,then'=exp1,else'=SOME(exp2),pos=IF1left}))
+   | IF compexp THEN exp (A.IfExp({test=compexp,then'=exp,else'=NONE,pos=defaultPos}))
+   | IF compexp THEN exp ELSE exp (A.IfExp({test=compexp,then'=exp1,else'=SOME(exp2),pos=defaultPos}))
 
 decs : dec decs (dec::decs)
-     | (A.NilExp) 
+     | (nil) 
 
 dec : tydec (tydec)
      | vardec (vardec)
@@ -100,44 +104,43 @@ compexp : comptype EQ comptype (A.OpExp({left=comptype1,oper=A.EqOp,right=compty
 	 | comptype LT comptype (A.OpExp({left=comptype1,oper=A.LtOp,right=comptype2,pos=comptype1left}))
 	 | comptype GE comptype (A.OpExp({left=comptype1,oper=A.GeOp,right=comptype2,pos=comptype1left}))
 	 | comptype GT comptype (A.OpExp({left=comptype1,oper=A.GtOp,right=comptype2,pos=comptype1left}))
-         | ID EQ ID  (A.OpExp({left=A.VarExp(A.SimpleVar(ID1,ID1left)),oper=A.EqOp,right=A.VarExp(A.SimpleVar(ID2,ID2right)),pos=ID1left}))
-	 | ID NEQ ID (A.OpExp({left=A.VarExp(A.SimpleVar(ID1,ID1left)),oper=A.NeqOp,right=A.VarExp(A.SimpleVar(ID2,ID2right)),pos=ID1left}))
+         | ID EQ ID  (A.OpExp({left=A.VarExp(A.SimpleVar(Symbol.symbol(ID1),ID1left)),oper=A.EqOp,right=A.VarExp(A.SimpleVar(Symbol.symbol(ID2),ID2right)),pos=defaultPos}))
+	 | ID NEQ ID (A.OpExp({left=A.VarExp(A.SimpleVar(Symbol.symbol(ID1),ID1left)),oper=A.NeqOp,right=A.VarExp(A.SimpleVar(Symbol.symbol(ID2),ID2right)),pos=defaultPos}))
          | intexp (intexp)
 
-boolop : compexp AND compexp (A.IfExp({test=compexp1, then'=compexp2, else'=A.IntExp(0),pos=compexp1left}))
+boolop : compexp AND compexp (A.IfExp({test=compexp1, then'=compexp2, else'=SOME(A.IntExp(0)),pos=defaultPos}))
 	 | compexp OR compexp (A.IfExp({test=compexp1, then'=A.IntExp(1),
-	 else'=compexp2, pos=compexp1left}))
+	 else'=SOME(compexp2), pos=defaultPos}))
 
 comptype : STRING (A.StringExp(STRING,defaultPos))
 	 | intexp (intexp)
 
-tydec : TYPE ID EQ ty (A.TypeDec({name=ID,ty=ty,pos=defaultPos})) 
+tydec : TYPE ID EQ ty (A.TypeDec([{name=Symbol.symbol(ID),ty=ty,pos=defaultPos}])) 
 
-ty : ID (A.NameTy(ID,defaultPos))
+ty : ID (A.NameTy(Symbol.symbol(ID),defaultPos))
    | LBRACE tyfields RBRACE (A.RecordTy(tyfields)) 
-   | ARRAY OF ID (A.ArrayTy(ID,defaultPos))
+   | ARRAY OF ID (A.ArrayTy(Symbol.symbol(ID),defaultPos))
 
 record : ID LBRACE recordlist RBRACE (A.RecordExp({fields=recordlist,
-typ=ID, pos=ID1left}))
+typ=Symbol.symbol(ID), pos=ID1left}))
 
-recordlist : ID EQ exp ((ID,exp,ID1left))
-           | ID EQ exp COMMA recordlist ((ID,exp,ID1left)::recordList2)
-           | ((nil,nil,nil)
+recordlist : ID EQ exp ([(Symbol.symbol(ID),exp,defaultPos)])
+           | ID EQ exp COMMA recordlist ((Symbol.symbol(ID),exp,ID1left)::recordlist)
 
-tyfields : ID COLON ID ({name=ID1,escape=true,typ=ID2,pos=ID1left}) 
-         | ID COLON ID COMMA tyfields ({name=ID1,escape=true,typ=ID2,pos=ID1left} :: tyfields)
-         | (A.NilExp)
+tyfields : ID COLON ID ([{name=Symbol.symbol(ID1),escape=ref true,typ=Symbol.symbol(ID2),pos=ID1left}]) 
+         | ID COLON ID COMMA tyfields ({name=Symbol.symbol(ID1),escape=ref true,typ=Symbol.symbol(ID2),pos=ID1left} :: tyfields)
+         | (nil)
 
-vardec : VAR ID ASSIGN exp (A.VarDec({name=ID, escape=true, typ=NONE,
+vardec : VAR ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID), escape=ref true, typ=NONE,
 init=exp, pos=ID1left}))
-       | VAR ID COLON ID ASSIGN exp (A.VarDec({name=ID1, escape=true, typ=SOME(ID2,ID2left),
+       | VAR ID COLON ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID1), escape=ref true, typ=SOME(Symbol.symbol(ID2),ID2left),
 init=exp, pos=ID1left}))
 
-fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ({name=ID,
-params=tyfields, result=NONE, body=exp, pos=ID1left})
-       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ({name=ID1,
-params=tyfields, result=SOME(ID2, ID2left), body=exp, pos=ID1left})
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp (A.FunctionDec([{name=Symbol.symbol(ID),
+params=tyfields, result=NONE, body=exp, pos=defaultPos}]))
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp (A.FunctionDec([{name=Symbol.symbol(ID1),
+params=tyfields, result=SOME(Symbol.symbol(ID2), ID2left), body=exp, pos=ID1left}]))
 
-lvalue : ID (A.SimpleVar(ID,defaultPos))
-       | lvalue DOT ID (A.FieldVar(lvalue,ID,lvalue1left))
+lvalue : ID (A.SimpleVar(Symbol.symbol(ID),defaultPos))
+       | lvalue DOT ID (A.FieldVar(lvalue,Symbol.symbol(ID),lvalue1left))
        | lvalue LBRACK exp RBRACK (A.SubscriptVar(lvalue,exp,lvalue1left))  
