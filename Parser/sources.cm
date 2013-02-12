@@ -1,5 +1,9 @@
 Group is
 
+absyn.sml
+table.sig
+table.sml
+symbol.sml
 tiger.lex
 errormsg.sml
 parsetest.sml
