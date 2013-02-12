@@ -1,3 +1,5 @@
+structure A = Absyn
+
 %%
 %term
     EOF 
@@ -9,7 +11,8 @@
   | AND | OR | ASSIGN
   | ARRAY | IF | THEN | ELSE | WHILE | FOR | TO | DO | LET | IN | END | OF 
   | BREAK | NIL
-  | FUNCTION | VAR | TYPE 
+  | FUNCTION | VAR | TYPE
+  | UMINUS 
 
 %nonterm  exp | program | decs | dec | sequence | funlist | intexp | ifstmt
  | compexp | boolop | comptype | tydec | ty | record | recordlist |
@@ -32,21 +35,26 @@
 %value INT (1)
 %value STRING ("")
 
+(* precedence *)
 %nonassoc ID THEN
+%left OR
+%left AND
+%nonassoc EQ NEQ GE LE GT LT
 %left PLUS MINUS
 %left TIMES DIVIDE
+%left UMINUS 
 %right LBRACK COMMA ELSE
 
 
 %%
 
-program	: exp ()
+program	: exp (exp)
 	
 exp: lvalue ()
    | NIL ()
    | LPAREN evalsequence RPAREN ()
-   | intexp ()
-   | STRING ()
+   | intexp (intexp)
+   | STRING (A.StringExp(STRING,defaultPos))
    | ID LPAREN funlist RPAREN ()
    | boolop ()
    | record ()
@@ -78,34 +86,34 @@ funlist : exp ()
          | exp COMMA exp ()
          | ()
 
-intexp : intexp PLUS intexp ()
-	 | intexp MINUS intexp ()
-	 | intexp TIMES intexp ()
-	 | intexp DIVIDE intexp ()       
-         | MINUS intexp ()
-	 | INT ()
+intexp : intexp PLUS intexp (A.OpExp({left=intexp1,oper=Absyn.PlusOp,right=intexp2,pos=intexp1left}))
+	 | intexp MINUS intexp (A.OpExp({left=intexp1,oper=Absyn.MinusOp,right=intexp2,pos=intexp1left}))
+	 | intexp TIMES intexp (A.OpExp({left=intexp1,oper=Absyn.TimesOp,right=intexp2,pos=intexp1left}))
+	 | intexp DIVIDE intexp (A.OpExp({left=intexp1,oper=Absyn.DivideOp,right=intexp2,pos=intexp1left}))       
+         | MINUS intexp (A.OpExp({left=A.IntExp(0),oper=Absyn.MinusOp,right=intexp,pos=intexpleft}))
+	 | INT (A.IntExp(INT))
 
-compexp : comptype EQ comptype ()
-	 | comptype NEQ comptype ()
-	 | comptype LE comptype ()
-	 | comptype LT comptype ()
-	 | comptype GE comptype ()
-	 | comptype GT comptype ()
-         | ID EQ ID ()
-	 | ID NEQ ID ()
-         | intexp ()
+compexp : comptype EQ comptype (A.OpExp({left=comptype1,oper=A.EqOp,right=comptype2,pos=comptype1left}))
+	 | comptype NEQ comptype (A.OpExp({left=comptype1,oper=A.NeqOp,right=comptype2,pos=comptype1left}))
+	 | comptype LE comptype (A.OpExp({left=comptype1,oper=A.LeOp,right=comptype2,pos=comptype1left}))
+	 | comptype LT comptype (A.OpExp({left=comptype1,oper=A.LtOp,right=comptype2,pos=comptype1left}))
+	 | comptype GE comptype (A.OpExp({left=comptype1,oper=A.GeOp,right=comptype2,pos=comptype1left}))
+	 | comptype GT comptype (A.OpExp({left=comptype1,oper=A.GtOp,right=comptype2,pos=comptype1left}))
+         | ID EQ ID  (A.OpExp({left=A.VarExp(A.SimpleVar(ID1,ID1left)),oper=A.EqOp,right=A.VarExp(A.SimpleVar(ID2,ID2right)),pos=ID1left}))
+	 | ID NEQ ID (A.OpExp({left=A.VarExp(A.SimpleVar(ID1,ID1left)),oper=A.NeqOp,right=A.VarExp(A.SimpleVar(ID2,ID2right)),pos=ID1left}))
+         | intexp (intexp)
 
 boolop : compexp AND compexp ()
 	 | compexp OR compexp ()
 
-comptype : STRING ()
-	 | intexp ()
+comptype : STRING (A.StringExp(STRING,defaultPos))
+	 | intexp (intexp)
 
-tydec : TYPE ID EQ ty () 
+tydec : TYPE ID EQ ty (A.TypeDec({name=ID,ty=ty,pos=defaultPos})) 
 
-ty : ID ()
-   | LBRACE tyfields RBRACE () 
-   | ARRAY OF ID ()
+ty : ID (A.NameTy(ID,defaultPos))
+   | LBRACE tyfields RBRACE (A.RecordTy(tyfields)) 
+   | ARRAY OF ID (A.ArrayTy(ID,defaultPos))
 
 record : ID LBRACE recordlist RBRACE ()
 
@@ -113,9 +121,9 @@ recordlist : ID EQ exp ()
            | recordlist COMMA recordlist ()
            | ()
 
-tyfields : ID COLON ID () 
-         | ID COLON ID COMMA tyfields ()
-         | ()
+tyfields : ID COLON ID ({name=ID1,escape=true,typ=ID2,pos=ID1left}) 
+         | ID COLON ID COMMA tyfields ({name=ID1,escape=true,typ=ID2,pos=ID1left} :: tyfields)
+         | (A.NilExp)
 
 vardec : VAR ID ASSIGN exp ()
        | VAR ID COLON ID ASSIGN exp ()
