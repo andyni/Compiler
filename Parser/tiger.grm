@@ -14,12 +14,18 @@ structure A = Absyn
   | FUNCTION | VAR | TYPE
   | UMINUS 
 
-%nonterm  exp of A.exp | program of A.exp | decs of A.dec list | dec of A.dec |
-sequence of A.exp  | funlist of A.exp list | intexp of A.exp | ifstmt of A.exp
- | compexp of A.exp | boolop of A.exp | comptype of A.exp | tydec of A.dec
- | ty of A.ty | record of A.exp | recordlist of (A.symbol * A.exp * A.pos) list  |
- tyfields of A.field list | vardec of A.dec | fundec of A.dec |
- lvalue of A.var | evalsequence of (A.exp * A.pos) list
+%nonterm  exp of A.exp | program of A.exp | decs of A.dec list | dec of A.dec 
+ | sequence of A.exp  | funlist of A.exp list | intexp of A.exp | ifstmt of A.exp
+ | compexp of A.exp | boolop of A.exp | comptype of A.exp 
+ | tydec of {name: Symbol.symbol, ty: Absyn.ty, pos: pos} 
+ | tydecs of {name: Symbol.symbol, ty: Absyn.ty, pos: pos} list
+ | ty of A.ty 
+ | tyfields of A.field list
+ | record of A.exp | recordlist of (A.symbol * A.exp * A.pos) list  
+ | vardec of A.dec 
+ | fundec of Absyn.fundec
+ | fundecs of Absyn.fundec list
+ | lvalue of A.var | evalsequence of (A.exp * A.pos) list
 
 %pos int
 %verbose
@@ -76,9 +82,23 @@ exp: lvalue (A.VarExp(lvalue))
 decs : dec decs (dec::decs)
      | (nil) 
 
-dec : tydec (tydec)
+dec : tydecs (A.TypeDec(tydecs))
      | vardec (vardec)
-     | fundec (fundec)
+     | fundecs (A.FunctionDec(fundecs))
+
+vardec : VAR ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID),escape=ref true,typ=NONE,init=exp,pos=ID1left}))
+       | VAR ID COLON ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID1),escape=ref true,typ=SOME(Symbol.symbol(ID2),ID2left),init=exp,pos=ID1left}))
+
+fundecs: fundec ([fundec])
+       | fundec fundecs (fundec::fundecs)
+
+fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ({name=Symbol.symbol(ID),params=tyfields, result=NONE, body=exp, pos=defaultPos})
+       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ({name=Symbol.symbol(ID1),params=tyfields, result=SOME(Symbol.symbol(ID2), ID2left), body=exp, pos=ID1left})
+
+tydecs: tydec ([tydec])
+      | tydec tydecs (tydec::tydecs)
+
+tydec : TYPE ID EQ ty ({name=Symbol.symbol(ID),ty=ty,pos=defaultPos}) 
 
 sequence : exp (exp)
          | sequence SEMICOLON exp (exp)
@@ -115,8 +135,6 @@ boolop : compexp AND compexp (A.IfExp({test=compexp1, then'=compexp2, else'=SOME
 comptype : STRING (A.StringExp(STRING,defaultPos))
 	 | intexp (intexp)
 
-tydec : TYPE ID EQ ty (A.TypeDec([{name=Symbol.symbol(ID),ty=ty,pos=defaultPos}])) 
-
 ty : ID (A.NameTy(Symbol.symbol(ID),defaultPos))
    | LBRACE tyfields RBRACE (A.RecordTy(tyfields)) 
    | ARRAY OF ID (A.ArrayTy(Symbol.symbol(ID),defaultPos))
@@ -130,16 +148,6 @@ recordlist : ID EQ exp ([(Symbol.symbol(ID),exp,defaultPos)])
 tyfields : ID COLON ID ([{name=Symbol.symbol(ID1),escape=ref true,typ=Symbol.symbol(ID2),pos=ID1left}]) 
          | ID COLON ID COMMA tyfields ({name=Symbol.symbol(ID1),escape=ref true,typ=Symbol.symbol(ID2),pos=ID1left} :: tyfields)
          | (nil)
-
-vardec : VAR ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID), escape=ref true, typ=NONE,
-init=exp, pos=ID1left}))
-       | VAR ID COLON ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID1), escape=ref true, typ=SOME(Symbol.symbol(ID2),ID2left),
-init=exp, pos=ID1left}))
-
-fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp (A.FunctionDec([{name=Symbol.symbol(ID),
-params=tyfields, result=NONE, body=exp, pos=defaultPos}]))
-       | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp (A.FunctionDec([{name=Symbol.symbol(ID1),
-params=tyfields, result=SOME(Symbol.symbol(ID2), ID2left), body=exp, pos=ID1left}]))
 
 lvalue : ID (A.SimpleVar(Symbol.symbol(ID),defaultPos))
        | lvalue DOT ID (A.FieldVar(lvalue,Symbol.symbol(ID),lvalue1left))
