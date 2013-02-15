@@ -15,7 +15,7 @@ structure A = Absyn
   | UMINUS 
 
 %nonterm  exp of A.exp | program of A.exp | decs of A.dec list | dec of A.dec 
- | sequence of (A.exp * A.exp) list  
+ | sequence of (A.exp * A.pos) list  
  | funlist of A.exp list | intexp of A.exp | ifstmt of A.exp
  | compexp of A.exp | boolop of A.exp | comptype of A.exp 
  | tydec of {name: Symbol.symbol, ty: Absyn.ty, pos: pos} 
