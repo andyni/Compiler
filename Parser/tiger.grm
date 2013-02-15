@@ -53,7 +53,7 @@ structure A = Absyn
 %left PLUS MINUS
 %left TIMES DIVIDE
 %left UMINUS 
-%right LBRACK COMMA ELSE
+%right LBRACK COMMA ELSE FUNCTION TYPE
 
 
 %%
@@ -92,13 +92,13 @@ dec : tydecs (A.TypeDec(tydecs))
 vardec : VAR ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID),escape=ref true,typ=NONE,init=exp,pos=ID1left}))
        | VAR ID COLON ID ASSIGN exp (A.VarDec({name=Symbol.symbol(ID1),escape=ref true,typ=SOME(Symbol.symbol(ID2),ID2left),init=exp,pos=ID1left}))
 
-fundecs: fundec ([fundec])
+fundecs: fundec %prec ID ([fundec])
        | fundec fundecs (fundec::fundecs)
 
 fundec : FUNCTION ID LPAREN tyfields RPAREN EQ exp ({name=Symbol.symbol(ID),params=tyfields, result=NONE, body=exp, pos=defaultPos})
        | FUNCTION ID LPAREN tyfields RPAREN COLON ID EQ exp ({name=Symbol.symbol(ID1),params=tyfields, result=SOME(Symbol.symbol(ID2), ID2left), body=exp, pos=ID1left})
 
-tydecs: tydec ([tydec])
+tydecs: tydec %prec ID ([tydec])
       | tydec tydecs (tydec::tydecs)
 
 tydec : TYPE ID EQ ty ({name=Symbol.symbol(ID),ty=ty,pos=defaultPos}) 
