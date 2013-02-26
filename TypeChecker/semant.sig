@@ -18,7 +18,7 @@ struct
 	    let fun tuplify (l, f::funlist, a::arglist) = (trexp a,f,venv,pos)::l
 			| (l, (), ()) = l
 	    in
-	      map checkExp (tuplify([],#formals getOpt(Symbol.look(fun)),arglist))
+	      map checkExp (tuplify([],getOpt(Symbol.look(fun)).formals,arglist))
 	    end
 	  
     fun transProg exp = ()
@@ -32,16 +32,59 @@ struct
   	| trexp(StringExp s) = {exp=(), ty=Types.STRING}
 	| trexp(CallExp{func,arglist,pos}) =
 	    checkExpList(arglist,func,venv,pos);
-	    {exp=(), ty=#result getOpt(Symbol.look(func))}
+	    {exp=(), ty= getOpt(Symbol.look(func)).result}
 	| trexp(Absyn.AssignExp{var, exp, pos})=
-	    let {expr,type} = trexp exp
-	    	{expr2,type2} = trvar var
+	    let val {exp=_,ty=type} = trexp exp
+	    	val {exp=_,ty=type2} = trvar var
 	    in
 	     if type = type2 then ()
 	     else error pos "Type mismatch in assignment";
-	     {expr2,type2}
+	     {exp,type2}
 	    end
-	    
+	| trexp(Absyn.IfExp{test,thenexp,elseexp,pos}) = 
+	    let val {exp=_, ty=tythen} = trexp thenexp
+	    	val {exp, tyelse} = trexp elseexp
+	    in
+	      checkInt(trexp test, pos);
+	      if (isSome(tyelse)) then 
+	        if (getOpt(tyelse)=tythen) then () else error pos "Type
+    mismatch in if statement";
+    	      {exp, tythen}
+	| trexp(Absyn.WhileExp{test, body, pos}) = 
+	     checkInt(trexp test, pos);
+	     trexp body
+	| trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
+	     checkInt(trvar var, pos);
+	     checkInt(trexp lo, pos);
+	     checkInt(trexp hi, pos);
+	     trexp body
+	| trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
+	    let {exp=_, ty=arrtype} = trexp init
+	    in
+	     checkInt(trexp size, pos);
+	     if (Symbol.look(tenv, typ) = arrtype then ()
+	     	else error pos "Array type does not match initial value";
+	     {exp,arrtype}
+	    end
+	| trexp(Absyn.SeqExp l) =
+	    let fun tycheckseq ([], r) = r
+	           tycheckseq (a::l,r) = tycheckseq(l,trexp a)
+	    in
+	     tycheckseq(l,())
+	    end
+	| trexp(Absyn.RecordExp{fields, typ, pos}) = 
+	    let fun checktypes (symbol, exp, post) = checkExp(trexp exp,
+    symbol, tenv, post)
+	    in
+		map checktypes fields;
+		{exp=(), Symbol.look(tenv, typ)}
+            end
+	  
+	and trvar (A.SimpleVar(id,pos)) = 
+	    (case Symbol.look(venv,id)
+	         of SOME(E.VarEntry{ty}) => {exp=(), ty=ty}
+		| NONE => (error pos "Undefined variable " ^ S.name id); exp=(), ty=Types.INT))
+	| trvar(A.FieldVar(v,id,pos)) = ()
 
      
        
