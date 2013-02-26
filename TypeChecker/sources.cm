@@ -4,6 +4,7 @@ absyn.sml
 prabsyn.sml
 table.sig
 table.sml
+types.sml
 semant.sig
 semant.sml
 env.sig
