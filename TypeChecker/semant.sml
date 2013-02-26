@@ -8,12 +8,9 @@ struct
 	       if ty1=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    
-	  
     fun transProg exp = ()
     fun transExp (venv, tenv, topexp) =
-	let
-	fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
+	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
         (checkInt(trexp left,pos);
 	checkInt(trexp right,pos);
         {exp=(), ty=Types.INT})
@@ -22,17 +19,16 @@ struct
   	| trexp(StringExp s) = {exp=(), ty=Types.STRING}
 	| trexp(CallExp{func,arglist,pos}) =
 	  let
-	      fun checkExpList(arglist,func, pos) = 
-		  let fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f,venv,pos)::l,funlist,arglist)
+	        fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f,venv,pos)::l,funlist,arglist)
 			| tuplify  (l,[],[]) = l
 		val funcval = Symbol.look(func)
 	    in
 		case funcval of SOME(Env.FunEntry{formals, result}) =>
 			map checkExp (tuplify([],formals,arglist))
 	        | _ => ();
-	     case Symbol.look(func) of SOME(Env.FunEntry{formals,result}) =>
-		  {exp=(), ty= result}
-	     | _ => ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT}
+	        case Symbol.look(func) of SOME(Env.FunEntry{formals,result}) =>
+		    {exp=(), ty= result}
+	        | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
 	    end
 	| trexp(Absyn.AssignExp{var, exp, pos}) =
 	    let val {exp=_,ty=type1} = trexp exp
