@@ -77,8 +77,21 @@ struct
 	  
 	and trvar (A.SimpleVar(id,pos)) = 
 	    (case Symbol.look(venv,id)
-	         of SOME(E.VarEntry{ty}) => {exp=(), ty=ty}
-		| NONE => (error pos "Undefined variable " ^ S.name id); exp=(), ty=Types.INT))
-	| trvar(A.FieldVar(v,id,pos)) = ()
-
+	         of SOME(Env.VarEntry{ty}) => {exp=(), ty=ty}
+		| NONE => (error pos "Undefined variable " ^ Symbol.name id); exp=(), ty=Types.INT))
+	| trvar(A.FieldVar(v,id,pos)) = 
+	    let val {exp=_, ty=vartype} = trvar v
+		fun checkList((sym,ty)::l) = if (id=sym) then ty else checkList(l)
+		    checkList([]) = error pos "Id not in Record"; Types.INT
+            in
+		case vartype of SOME(Env.VarEntry{Types.RECORD(fieldlist,u)}) =>  {exp=(), ty=checkList(fieldlist)}
+		    | _ => (error pos "Variable is not a record"; {exp=(), ty=Types.INT})
+	    end
+        | trvar(Absyn.SubscriptVar(v,exp,pos)) =
+	    let val {exp=_, ty=vartype} = trvar v
+	    in
+		checkInt(trexp exp, pos);
+		case vartype of SOME(Env.VarEntry{Types.ARRAY(ty,u)}) =>  {exp=(), ty=ty}
+		    | _ => (error pos "Variable is not a array"; {exp=(), ty=Types.INT})
+	    end
 end

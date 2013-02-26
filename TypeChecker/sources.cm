@@ -4,6 +4,10 @@ absyn.sml
 prabsyn.sml
 table.sig
 table.sml
+semant.sig
+semant.sml
+env.sig
+env.sml
 symbol.sml
 tiger.lex
 errormsg.sml
