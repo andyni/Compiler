@@ -1,5 +1,6 @@
 Group is
 
+main.sml
 absyn.sml
 prabsyn.sml
 table.sig

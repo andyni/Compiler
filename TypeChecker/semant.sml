@@ -8,7 +8,7 @@ struct
 	       if ty1=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun transProg exp = ()
+   
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
         (checkInt(trexp left,pos);
@@ -67,13 +67,14 @@ struct
 	    in
 	     tycheckseq(l,{exp=(), ty=Types.NIL})
 	    end
-	| trexp(Absyn.RecordExp{fields, typ, pos}) = 
+        | trexp(_) = {exp=(),ty=Types.INT}
+	(*| trexp(Absyn.RecordExp{fields, typ, pos}) = 
 	    let fun checktypes(symbol, exp, post) = checkExp(trexp exp,
     symbol, tenv, pos)
 	    in
 		map checktypes fields;
 		{exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
-            end
+            end *)
 
 	and trvar (Absyn.SimpleVar(id,pos)) = 
 	    (case Symbol.look(venv,id)
@@ -121,4 +122,6 @@ struct
 		transExp (venv'', tenv) body; {venv=venv', tenv=tenv}
 	    end
 *)
+
+    fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
 end

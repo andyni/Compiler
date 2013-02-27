@@ -1,4 +1,4 @@
 signature SEMANT =
 sig
-    val transProg: unit -> unit
+    val transProg: Absyn.exp -> unit
 end
