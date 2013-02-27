@@ -2,6 +2,7 @@ structure Semant :> SEMANT =
 struct
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
+        
     fun checkExp ({exp=(),ty1}, sym, venv, pos) =
     	let val ty2 = Symbol.look(venv, sym)
 	    in 
@@ -39,12 +40,12 @@ struct
 	    end
 	| trexp(Absyn.IfExp{test, then', else', pos}) = 
 	    let val {exp=_, ty=tythen} = trexp then'
-	    val {exp=_, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
+	        val {exp=_, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
 	    in
 	      checkInt(trexp test, pos);
-	      if (isSome(else')) then if (tyelse = tythen) then () else
-	      	  ErrorMsg.error pos "Type mismatch in if statement" else ();
-    	      {exp=(), ty=tythen}
+	      case else' of  
+		  SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(), ty=tythen})
+                | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=(), ty=Types.UNIT})
             end
 	| trexp(Absyn.WhileExp{test, body, pos}) = 
 	    (checkInt(trexp test, pos);
