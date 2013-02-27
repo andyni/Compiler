@@ -2,8 +2,8 @@ structure Semant :> SEMANT =
 struct
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
-    fun checkExp ({exp=(),ty1}, symbol, venv, pos) =
-    	let val ty2 = Symbol.look(venv, symbol)
+    fun checkExp ({exp=(),ty1}, sym, venv, pos) =
+    	let val ty2 = Symbol.look(venv, sym)
 	    in 
 	       if ty1=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
@@ -17,7 +17,7 @@ struct
    	| trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
   	| trexp(Absyn.VarExp v) = trvar v
   	| trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
-	| trexp(Absyn.CallExp{func,arglist,pos}) =
+	| trexp(Absyn.CallExp{func,args,pos}) =
 	  let
 	        fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f)::l,funlist,arglist)
 			| tuplify  (l,[],[]) = l
@@ -26,7 +26,7 @@ struct
 		val funcval = Symbol.look(venv,func)
 	    in
 	        case funcval of SOME(Env.FunEntry{formals,result}) =>
-		    (map checkTyExp (tuplify([],formals,arglist)); {exp=(), ty=result})
+		    (map checkTyExp (tuplify([],formals,args)); {exp=(), ty=result})
 	        | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
 	    end
 	| trexp(Absyn.AssignExp{var, exp, pos}) =
@@ -37,11 +37,13 @@ struct
 	     else ErrorMsg.error pos "Type mismatch in assignment";
 	     {exp=(),ty=type2}
 	    end
-	| trexp(Absyn.IfExp{test, thenexp, elsee, pos}) = 
-	    let val {exp=_, ty=tythen} = trexp thenexp
+	| trexp(Absyn.IfExp{test, then', else', pos}) = 
+	    let val {exp=_, ty=tythen} = trexp then'
+	    val {exp=_, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
 	    in
 	      checkInt(trexp test, pos);
-	      case elsee of SOME(elseexp) => if ((#ty (trexp elseexp)) = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement";
+	      if (isSome(else')) then if (tyelse = tythen) then () else
+	      	  ErrorMsg.error pos "Type mismatch in if statement" else ();
     	      {exp=(), ty=tythen}
             end
 	| trexp(Absyn.WhileExp{test, body, pos}) = 
