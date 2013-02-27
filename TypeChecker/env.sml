@@ -2,8 +2,8 @@ structure Env :> ENV =
 struct
   type access = int
   type ty = Types.ty
-  datatype enventry = VarEntry of {ty: ty}
-		    | FunEntry of {formals: ty list, result: ty}
+  datatype enventry = VarEntry of {ty: Types.ty}
+		    | FunEntry of {formals: Types.ty list, result: Types.ty}
   
   structure S = Symbol
   structure T = Types
