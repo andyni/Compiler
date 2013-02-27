@@ -1,8 +1,8 @@
 structure Semant :> SEMANT =
 struct
-    fun checkInt ({exp,ty}, pos) = case ty of Types.INT => ()
+    fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
-    fun checkExp ({exp,ty1}, symbol, venv, pos) =
+    fun checkExp ({exp=(),ty1}, symbol, venv, pos) =
     	let val ty2 = Symbol.look(venv, symbol)
 	    in 
 	       if ty1=getOpt(ty2,Types.NIL) then ()
@@ -16,18 +16,17 @@ struct
         {exp=(), ty=Types.INT})
    	| trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
   	| trexp(Absyn.VarExp v) = trvar v
-  	| trexp(StringExp s) = {exp=(), ty=Types.STRING}
-	| trexp(CallExp{func,arglist,pos}) =
+  	| trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
+	| trexp(Absyn.CallExp{func,arglist,pos}) =
 	  let
-	        fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f,venv,pos)::l,funlist,arglist)
+	        fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f)::l,funlist,arglist)
 			| tuplify  (l,[],[]) = l
-		val funcval = Symbol.look(func)
+		fun checkTyExp({exp,ty},ty2) = if ty=ty2 then ()
+						  else ErrorMsg.error pos "Type mismatch"
+		val funcval = Symbol.look(venv,func)
 	    in
-		case funcval of SOME(Env.FunEntry{formals, result}) =>
-			map checkExp (tuplify([],formals,arglist))
-	        | _ => ();
-	        case Symbol.look(func) of SOME(Env.FunEntry{formals,result}) =>
-		    {exp=(), ty= result}
+	        case funcval of SOME(Env.FunEntry{formals,result}) =>
+		    (map checkTyExp (tuplify([],formals,arglist)); {exp=(), ty=result})
 	        | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
 	    end
 	| trexp(Absyn.AssignExp{var, exp, pos}) =
@@ -36,67 +35,88 @@ struct
 	    in
 	     if type1 = type2 then ()
 	     else ErrorMsg.error pos "Type mismatch in assignment";
-	     {exp=exp,ty=type2}
+	     {exp=(),ty=type2}
 	    end
-	| trexp(Absyn.IfExp{test,thenexp, elseexp, pos}) = 
+	| trexp(Absyn.IfExp{test, thenexp, elsee, pos}) = 
 	    let val {exp=_, ty=tythen} = trexp thenexp
-		val {exp=_, ty=tyelse} = if (isSome(elseexp)) then trexp getOpt(elseexp) else {exp=(), ty=Types.INT}
 	    in
-	      checkInt(trexp test, pos); 
-	      if (isSome(elseexp)) then 
-	        if (tyelse=tythen) then () else ErrorMsg.error pos "Type mismatch in if statement" else ();
-    	      {exp=exp, ty=tythen}
+	      checkInt(trexp test, pos);
+	      case elsee of SOME(elseexp) => if ((#ty (trexp elseexp)) = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement";
+    	      {exp=(), ty=tythen}
             end
 	| trexp(Absyn.WhileExp{test, body, pos}) = 
 	    (checkInt(trexp test, pos);
 	     trexp body)
 	| trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
-	    (checkInt(trvar var, pos);
-	     checkInt(trexp lo, pos);
+	     (checkInt(trexp lo, pos);
 	     checkInt(trexp hi, pos);
 	     trexp body)
 	| trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 	    let val {exp=_, ty=arrtype} = trexp init
 	    in
 	     checkInt(trexp size, pos);
-	     if (Symbol.look(tenv, typ) = arrtype) then ()
+	     if (getOpt(Symbol.look(tenv, typ),Types.NIL) = arrtype) then ()
 	     	else ErrorMsg.error pos "Array type does not match initial value";
-	     {exp=exp,ty=arrtype}
+	     {exp=(),ty=arrtype}
 	    end
 	| trexp(Absyn.SeqExp l) =
 	    let fun tycheckseq ([], r) = r
-	      |     tycheckseq (a::l,r) = tycheckseq(l,trexp a)
+	      |     tycheckseq ((exp,pos)::l,r) = tycheckseq(l,trexp exp)
 	    in
-	     tycheckseq(l,())
+	     tycheckseq(l,{exp=(), ty=Types.NIL})
 	    end
 	| trexp(Absyn.RecordExp{fields, typ, pos}) = 
-	    let fun checktypes (symbol, exp, post) = checkExp(trexp exp,
-    symbol, tenv, post)
+	    let fun checktypes(symbol, exp, post) = checkExp(trexp exp,
+    symbol, tenv, pos)
 	    in
 		map checktypes fields;
-		{exp=(), ty=Symbol.look(tenv, typ)}
+		{exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
             end
 
 	and trvar (Absyn.SimpleVar(id,pos)) = 
 	    (case Symbol.look(venv,id)
 	         of SOME(Env.VarEntry{ty}) => {exp=(), ty=ty}
-		| NONE => (ErrorMsg.error pos "Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.INT})
+		| NONE => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.INT}))
 	| trvar(Absyn.FieldVar(v,id,pos)) = 
 	    let val {exp=_, ty=vartype} = trvar v
-		fun checkList() = (ErrorMsg.error pos "Id not in Record"; Types.INT)
-		  | checkList((sym,ty)::l) = if (id=sym) then ty else checkList(l)		   
+		fun checkList([]) = ErrorMsg.error pos "Id not in Record"
+		  | checkList((sym,ty)::l) = if (id=sym) then () else checkList(l)		   
             in
-		case vartype of SOME(Env.VarEntry{ty as Types.RECORD(fieldlist)}) =>  {exp=(), ty=checkList(fieldlist)}
+		case vartype of Types.RECORD(fieldlist,u) =>  (checkList(fieldlist); {exp=(), ty=vartype})
 		    | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.INT})
 	    end
         | trvar(Absyn.SubscriptVar(v,exp,pos)) =
 	    let val {exp=_, ty=vartype} = trvar v
 	    in
 		checkInt(trexp exp, pos);
-		case vartype of SOME(Env.VarEntry{ty as Types.ARRAY(type1)}) =>  {exp=(), ty=type1}
-		    | _ => (ErrorMsg.error pos "Variable is not a array"; {exp=(), ty=Types.INT})
+		{exp=(), ty=vartype}
 	    end
-	in
-	    trexp(topexp)
-        end
+       in
+	trexp(topexp)
+       end
+       
+
+      
+(*       fun  transDec (venv,tenv,Abysyn.VarDec{name,typ=NONE,init,...}) =
+	  let val {exp,ty} = transExp(venv,tenv,init)
+	  in
+	   {tenv=tenv, venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
+	  end
+	| transDec(venv,tenv,Absyn.TypeDec[{name,ty}]) = {venv=venv,
+	    tenv=Symbol.enter(tenv,name,transTy(tenv,ty))}
+	| transDec(venv, tenv,
+	    Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos)}]) = 
+	    let val SOME(result_ty) = Symbol.look(tenv,rt)
+	    fun transparam{name,typ,pos}=case Symbol.look(tenv,typ) of SOME t =>
+	    	{name=name, ty=t}
+	    val params' = map transparam params
+	    val venv' = Symbol.enter(venv, name, Env.FunEntry{formals = map
+	    	#ty params', result=result_ty})
+	    fun enterparam({name,ty},venv) =
+	    	Symbol.enter(venv,name,Env.VarEntry{access=(), ty=ty})
+	    val venv'' = fold enterparam params' venv'
+	    in
+		transExp (venv'', tenv) body; {venv=venv', tenv=tenv}
+	    end
+*)
 end
