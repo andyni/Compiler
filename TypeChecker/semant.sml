@@ -3,10 +3,10 @@ struct
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
         
-    fun checkExp ({exp=(),ty1}, sym, venv, pos) =
+    fun checkExp ({exp=(),ty}, sym, venv, pos) =
     	let val ty2 = Symbol.look(venv, sym)
 	    in 
-	       if ty1=getOpt(ty2,Types.NIL) then ()
+	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
 
@@ -84,17 +84,13 @@ struct
 		    transExp(venv',tenv', body)
 		end
 
-              | trexp(_) = {exp=(),ty=Types.INT}
-
-
-	    (*| trexp(Absyn.RecordExp{fields, typ, pos}) = 
-	    let fun checktypes(symbol, exp, post) = checkExp(trexp exp,
-    symbol, tenv, pos)
-	    in
-		map checktypes fields;
-		{exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
-            end *)
-
+	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
+		let fun checktypes(symbol, exp, post) = checkExp(trexp exp, symbol, tenv, pos)
+		in
+		    map checktypes fields;
+		    {exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
+		end 
+		    
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
 	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=ty}
@@ -136,22 +132,21 @@ struct
 	end
       | transDec(venv,tenv,Absyn.TypeDec[{name,ty,pos}]) = 
 	{venv=venv,tenv=Symbol.enter(tenv,name,transTy(tenv,ty))}
-      (*
-      | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos)}]) = 
+      
+      | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos1)}]) = 
 	let val SOME(result_ty) = Symbol.look(tenv,rt)
-	    fun transparam {name,typ,pos}=
+	    fun transparam {name,escape,typ,pos}=
 		case Symbol.look(tenv,typ) of 
 		    SOME t => {name=name, ty=t}
 	    val params' = map transparam params
 	    val venv' = Symbol.enter(venv, name, Env.FunEntry{formals = map #ty params', result=result_ty})
 	    fun enterparam ({name,ty},venv) =
-	    	Symbol.enter(venv,name,Env.VarEntry{access=(), ty=ty})
-	    val venv'' = foldr enterparam params' venv'
+	    	Symbol.enter(venv,name,Env.VarEntry{ty=ty})
+	    val venv'' = foldr enterparam venv' params'
 	    in
-		transExp (venv'', tenv) body; 
+		transExp (venv'', tenv, body); 
 		{venv=venv', tenv=tenv}
 	    end
-      *)
 
 
     fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
