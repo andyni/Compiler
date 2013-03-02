@@ -19,11 +19,14 @@ struct
                       {exp=(), ty=Types.INT})
     	      | trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
   	      | trexp(Absyn.VarExp v) = trvar v
+	      | trexp(Absyn.NilExp) = {exp=(), ty=Types.NIL}
+	      | trexp(Absyn.BreakExp pos) = {exp=(), ty=Types.BOTTOM}
   	      | trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
 	      | trexp(Absyn.CallExp{func,args,pos}) =
 		let
 	            fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f)::l,funlist,arglist)
-		      | tuplify  (l,[],[]) = l
+		      | tuplify (l,[],[]) = l
+		      | tuplify (l,_,_) = (ErrorMsg.error pos "The number of parameters does not match function definition."; l)  
 		    fun checkTyExp({exp,ty},ty2) = if ty=ty2 then ()
 						   else ErrorMsg.error pos "Type mismatch"
 		    val funcval = Symbol.look(venv,func)
@@ -94,7 +97,7 @@ struct
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
 	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=ty}
-		   | NONE => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.INT}))
+		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.BOTTOM}))
 
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
 		let val {exp=_, ty=vartype} = trvar v
@@ -130,6 +133,8 @@ struct
 	in
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
+      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,...}) =
+	{tenv=tenv,venv=venv}
       | transDec(venv,tenv,Absyn.TypeDec[{name,ty,pos}]) = 
 	{venv=venv,tenv=Symbol.enter(tenv,name,transTy(tenv,ty))}
       
@@ -138,6 +143,7 @@ struct
 	    fun transparam {name,escape,typ,pos}=
 		case Symbol.look(tenv,typ) of 
 		    SOME t => {name=name, ty=t}
+                  | NONE => {name=name, ty=Types.BOTTOM} 
 	    val params' = map transparam params
 	    val venv' = Symbol.enter(venv, name, Env.FunEntry{formals = map #ty params', result=result_ty})
 	    fun enterparam ({name,ty},venv) =
