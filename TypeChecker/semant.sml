@@ -10,8 +10,15 @@ struct
                else ErrorMsg.error pos "Type mismatch"
 	    end
 
-    fun transTy (tenv, ty) = Types.INT
-   
+    fun transTy (tenv, Absyn.NameTy(name,pos)) = getOpt(Symbol.look(tenv,name), Types.INT)
+    | transTy (tenv, Absyn.RecordTy(fieldlist)) =
+      	 let fun createRecList(a,{name,escape,typ,pos}::l) = (name, getOpt(Symbol.look(tenv,typ),Types.INT))::a
+    	    | createRecList(a,[]) = a
+   	 in
+	     Types.RECORD(createRecList([],fieldlist), ref ())
+	 end
+    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getOpt(Symbol.look(tenv,name), Types.INT), ref ()) 
+
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
                      (checkInt(trexp left,pos);
@@ -40,9 +47,10 @@ struct
 		let val {exp=_,ty=type1} = trexp exp
 	    	    val {exp=_,ty=type2} = trvar var
 		in
+		    print("Type 1" ^ (Types.printTy type1) ^ " Type 2 "^ Types.printTy type2 ^ "\n");
 		    if type1 = type2 then ()
 		    else ErrorMsg.error pos "Type mismatch in assignment";
-		    {exp=(),ty=type2}
+		    {exp=(),ty=Types.UNIT}
 		end
 
 	      | trexp(Absyn.IfExp{test, then', else', pos}) = 
@@ -56,13 +64,21 @@ struct
 		end
 
 	      | trexp(Absyn.WhileExp{test, body, pos}) = 
-		(checkInt(trexp test, pos);
-		 trexp body)
-
+	        let val {exp=_, ty=ty1} = trexp body
+		in
+			checkInt(trexp test, pos);
+		 	if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required";
+		    	{exp=(), ty=ty1}
+		end
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
-		(checkInt(trexp lo, pos);
+	         let val {exp=_, ty=ty1} = transExp(Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT}),tenv,body) 
+		in 
+		 checkInt(trexp lo, pos);
 		 checkInt(trexp hi, pos);
-		 trexp body)
+		 if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
+      		{exp=(), ty=ty1}
+		end
+		
 
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 		let val {exp=_, ty=arrtype} = trexp init
@@ -88,7 +104,10 @@ struct
 		end
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
-		let fun checktypes(symbol, exp, post) = checkExp(trexp exp, symbol, tenv, pos)
+	        let val Types.RECORD(fieldlist,u) =  getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref()))
+		fun getType(f,(name,ty)::l) = (print ((Symbol.name name) ^ " " ^ (Symbol.name f) ^ "\n"); if (f=name) then ty else getType(f,l))
+		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
+		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
 		in
 		    map checktypes fields;
 		    {exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
@@ -101,11 +120,11 @@ struct
 
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
 		let val {exp=_, ty=vartype} = trvar v
-		    fun checkList([]) = ErrorMsg.error pos "Id not in Record"
-		      | checkList((sym,ty)::l) = if (id=sym) then () else checkList(l)	
+		    fun checkList([]) = (ErrorMsg.error pos "Id not in Record"; {exp=(), ty=Types.BOTTOM})
+		      | checkList((sym,ty)::l) = if (id=sym) then {exp=(), ty=ty} else checkList(l)	
 		in
-		    case vartype of Types.RECORD(fieldlist,u) =>  (checkList(fieldlist); {exp=(), ty=vartype})
-				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.INT})
+		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist)
+				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.BOTTOM})
 		end
 
               | trvar(Absyn.SubscriptVar(v,exp,pos)) =
@@ -120,8 +139,8 @@ struct
 
     and transDecs (venv, tenv, decs) = 
 	let
-	    fun callTransDec (a::l) = let val env = transDec(venv,tenv,a) 
-				      in transDecs(venv,tenv,l)
+	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv'} = transDec(venv,tenv,a) 
+				      in transDecs(venv',tenv',l)
 				      end
 	      | callTransDec [] = {venv=venv,tenv=tenv}
 	in
@@ -133,11 +152,15 @@ struct
 	in
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
-      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,...}) =
-	{tenv=tenv,venv=venv}
-      | transDec(venv,tenv,Absyn.TypeDec[{name,ty,pos}]) = 
-	{venv=venv,tenv=Symbol.enter(tenv,name,transTy(tenv,ty))}
-      
+      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,...})=
+       	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getOpt(Symbol.look(tenv,rt),Types.BOTTOM)})}
+      | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
+	let
+	    fun callTransDec (tenv',venv',{name,ty,pos}::l) = callTransDec(Symbol.enter(tenv',name,transTy(tenv',ty)),venv',l)
+	    | callTransDec(tenv', venv', []) = {tenv=tenv', venv=venv'}
+	in
+	    callTransDec(tenv,venv,tylist)
+	end
       | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos1)}]) = 
 	let val SOME(result_ty) = Symbol.look(tenv,rt)
 	    fun transparam {name,escape,typ,pos}=
