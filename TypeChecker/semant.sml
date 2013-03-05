@@ -9,11 +9,11 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun getnamedty(Types.NAME(name,refty)) = getOpt(!refty,Types.BOTTOM)
+    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getOpt(!refty,Types.BOTTOM))
     	| getnamedty (ty) = ty
 
 
-    fun transTy (tenv, Absyn.NameTy(name,pos)) = getnamedty(getOpt(Symbol.look(tenv,name), Types.INT))
+    fun transTy (tenv, Absyn.NameTy(name,pos)) = getOpt(Symbol.look(tenv,name), Types.INT)
     | transTy (tenv, Absyn.RecordTy(fieldlist)) =
       	 let fun createRecList(a,{name,escape,typ,pos}::l) = (name, getnamedty(getOpt(Symbol.look(tenv,typ),Types.INT)))::a
     	    | createRecList(a,[]) = a
@@ -51,7 +51,7 @@ struct
 	    	    val {exp=_,ty=type2} = trvar var
 		in
 		    if type1 = type2 then ()
-		    else ErrorMsg.error pos "Type mismatch in assignment";
+		    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)));
 		    {exp=(),ty=Types.UNIT}
 		end
 
@@ -186,10 +186,17 @@ struct
 	    fun update (name, typ) = let 
 		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
 	    in
-		r:= (SOME typ)
+	       	r:= (SOME typ)
 	    end
+	    
+	    fun printTypes (name,typ) = let
+	    	val SOME(k) = Symbol.look(tenv',name)
+		in
+		print ("Type of "^(Symbol.name name) ^" "^(Types.printTy(getnamedty(k)))^"\n")
+		end
 	in
 	    (map update nameTypeTuples;
+	    map printTypes nameTypeTuples;
 	    {tenv=tenv', venv=venv})
 	end
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 

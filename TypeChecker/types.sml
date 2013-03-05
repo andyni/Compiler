@@ -12,6 +12,7 @@ struct
 	  | NAME of Symbol.symbol * ty option ref
 	  | UNIT
 	  | BOTTOM
+
   fun printTy (RECORD(list,u)) = "RECORD"
     | printTy (NIL) = "NIL"
     | printTy (INT) = "INT"
@@ -19,7 +20,7 @@ struct
     | printTy (ARRAY(t,u)) = "ARRAY"
     | printTy (UNIT) = "UNIT"
     | printTy (BOTTOM) = "BOTTOM"
-    | printTy (NAME(s,u)) = "NAME"
+    | printTy (NAME(s,u)) = "NAME of"^(printTy(valOf(!u)))
 
 end
 
