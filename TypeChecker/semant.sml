@@ -1,10 +1,12 @@
 structure Semant :> SEMANT =
 struct
+    val breakLevel = ref 0
+
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
 
-    fun getTyOption(SOME(k), pos, errorstmt) = k
-      | getTyOption(NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.BOTTOM)
+    fun getTyOption (SOME(k), pos, errorstmt) = k
+      | getTyOption (NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.BOTTOM)
         
     fun checkExp ({exp=(),ty}, sym, venv, pos) =
     	let val ty2 = Symbol.look(venv, sym)
@@ -12,23 +14,21 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist"))
-    	| getnamedty (ty) = ty
-
-
+    fun getnamedty (Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist"))
+      | getnamedty (ty) = ty
 
     fun transTy (tenv, Absyn.NameTy(name,pos)) =
     	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist"))
-    | transTy (tenv, Absyn.RecordTy(fieldlist)) =
-      	 let fun createRecList(a,{name,escape,typ,pos}::l) =
-    	createRecList((name, getTyOption(Symbol.look(tenv,typ),pos,("Record field type "^Symbol.name typ^" does not exist" )))::a,l)
-    	    | createRecList(a,[]) = a
-   	 in
-	     Types.RECORD(createRecList([],fieldlist), ref ())
-	 end
-    | transTy (tenv, Absyn.ArrayTy(name,pos)) =
+      | transTy (tenv, Absyn.RecordTy(fieldlist)) =
+      	let fun createRecList(a,{name,escape,typ,pos}::l) =
+    		createRecList((name, getTyOption(Symbol.look(tenv,typ),pos,("Record field type "^Symbol.name typ^" does not exist" )))::a,l)
+    	      | createRecList(a,[]) = a
+   	in
+	    Types.RECORD(createRecList([],fieldlist), ref ())
+	end
+      | transTy (tenv, Absyn.ArrayTy(name,pos)) =
     	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
-
+		   
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
                      (checkInt(trexp left,pos);
@@ -37,7 +37,9 @@ struct
     	      | trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
   	      | trexp(Absyn.VarExp v) = trvar v
 	      | trexp(Absyn.NilExp) = {exp=(), ty=Types.NIL}
-	      | trexp(Absyn.BreakExp pos) = {exp=(), ty=Types.BOTTOM}
+	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
+					     else (ErrorMsg.error pos "Break not properly nested.");
+	                                     {exp=(), ty=Types.BOTTOM})
   	      | trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
 	      | trexp(Absyn.CallExp{func,args,pos}) =
 		let
@@ -73,20 +75,26 @@ struct
 		end
 
 	      | trexp(Absyn.WhileExp{test, body, pos}) = 
-	        let val {exp=_, ty=ty1} = trexp body
+	        (breakLevel:=(!breakLevel)+1;
+		let val {exp=_, ty=ty1} = trexp body
 		in
 			checkInt(trexp test, pos);
 		 	if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required";
-		    	{exp=(), ty=ty1}
-		end
+			breakLevel:=(!breakLevel)-1;
+		    	{exp=(), ty=Types.UNIT}
+		end)
+
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
-	         let val {exp=_, ty=ty1} = transExp(Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT}),tenv,body) 
+	        (breakLevel:=(!breakLevel)+1;
+		let val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT})
+		    val {exp=_, ty=ty1} = transExp(venv',tenv,body) 
 		in 
-		 checkInt(trexp lo, pos);
-		 checkInt(trexp hi, pos);
-		 if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
-      		{exp=(), ty=ty1}
-		end
+		    checkInt(trexp lo, pos);
+		    checkInt(trexp hi, pos);
+		    if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
+		    breakLevel:=(!breakLevel)-1;
+      		    {exp=(), ty=Types.UNIT}
+		end)
 		
 
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
@@ -104,7 +112,7 @@ struct
 
 	      | trexp(Absyn.SeqExp l) =
 		let fun tycheckseq ([], r) = r
-		    |     tycheckseq ((exp,pos)::l,r) = tycheckseq(l,trexp exp)
+		      | tycheckseq ((exp,pos)::l,r) = tycheckseq(l,trexp exp)
 		in
 		    tycheckseq(l,{exp=(), ty=Types.NIL})
 		end
@@ -129,7 +137,7 @@ struct
 		    
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=ty}
+	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=getnamedty ty}
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.BOTTOM}))
 
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
@@ -147,7 +155,7 @@ struct
 		    checkInt(trexp exp, pos);
 		    print ("TYPEA : "^ Types.printTy(vartype)^"\n");
 		    case vartype of Types.ARRAY(acttype,u) => {exp=(),ty=getnamedty(acttype)}
-		    	| _ => (ErrorMsg.error pos "Not an array"; {exp=(), ty=Types.BOTTOM})
+		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(), ty=Types.BOTTOM})
 		end
 	in
 	    trexp(topexp)
