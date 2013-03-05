@@ -158,15 +158,20 @@ struct
        	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getnamedty(getOpt(Symbol.look(tenv,rt),Types.BOTTOM))})}
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
 	let
-	    val nameList = []
-            val typeList = []
-            val _ = let 
-		fun extractNameAndType ({name,ty,pos}::l) = (name::nameList; ty::typeList; ())
-		  | extractNameAndType [] = ()
+            val nameList = let 
+		fun extractName (list,{name,ty,pos}::l) = extractName(name::list,l)
+		  | extractName (list,[]) = list
 	    in
-		extractNameAndType(tylist)
+		extractName([], tylist)
 	    end
-	      
+
+	    val typeList = let 
+		fun extractType (list,{name,ty,pos}::l) = extractType(ty::list,l)
+		  | extractType (list,[]) = list
+	    in
+		extractType([], tylist)
+	    end	    
+  
             val tenv' = foldr (fn (name, env) => Symbol.enter(env, name, Types.NAME(name, ref NONE))) tenv nameList  
 	    val typeList' = map (fn t => transTy (tenv',t)) typeList
 	    
