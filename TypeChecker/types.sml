@@ -13,14 +13,17 @@ struct
 	  | UNIT
 	  | BOTTOM
 
-  fun printTy (RECORD(list,u)) = "RECORD"
+  fun printTy (RECORD(list,u)) = let
+      	fun printreclist((s,a)::l) = printTy(a)^printreclist(l) 
+	|   printreclist([]) = "\n"
+	in ("RECORD " ^ printreclist(list)) end
     | printTy (NIL) = "NIL"
     | printTy (INT) = "INT"
     | printTy (STRING) = "STRING"
     | printTy (ARRAY(t,u)) = "ARRAY"
     | printTy (UNIT) = "UNIT"
     | printTy (BOTTOM) = "BOTTOM"
-    | printTy (NAME(s,u)) = "NAME of"^(printTy(valOf(!u)))
+    | printTy (NAME(s,u)) = "NAME of"^(Symbol.name s)
 
 end
 

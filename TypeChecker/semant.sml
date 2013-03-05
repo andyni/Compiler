@@ -15,12 +15,12 @@ struct
 
     fun transTy (tenv, Absyn.NameTy(name,pos)) = getOpt(Symbol.look(tenv,name), Types.INT)
     | transTy (tenv, Absyn.RecordTy(fieldlist)) =
-      	 let fun createRecList(a,{name,escape,typ,pos}::l) = (name, getnamedty(getOpt(Symbol.look(tenv,typ),Types.INT)))::a
+      	 let fun createRecList(a,{name,escape,typ,pos}::l) = createRecList((name, getOpt(Symbol.look(tenv,typ),Types.INT))::a,l)
     	    | createRecList(a,[]) = a
    	 in
 	     Types.RECORD(createRecList([],fieldlist), ref ())
 	 end
-    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getnamedty(getOpt(Symbol.look(tenv,name), Types.INT)), ref ()) 
+    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getOpt(Symbol.look(tenv,name), Types.INT), ref ()) 
 
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
@@ -84,9 +84,12 @@ struct
 
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 		let val {exp=_, ty=arrtype} = trexp init
+		val Types.ARRAY(acttype,u) = getnamedty(getOpt(Symbol.look(tenv,typ),Types.NIL))
 		in
 		    checkInt(trexp size, pos);
-		    if (getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL)) = arrtype) then ()
+		    print (Types.printTy(arrtype) ^ "\n");
+		    print (Types.printTy(acttype) ^ "\n");
+		    if (acttype = arrtype) then ()
 	     	    else ErrorMsg.error pos "Array type does not match initial value";
 		    {exp=(),ty=arrtype}
 		end
@@ -107,7 +110,7 @@ struct
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
 	        let val Types.RECORD(fieldlist,u) =  getnamedty(getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref())))
-		fun getType(f,(name,ty)::l) = (print ((Symbol.name name) ^ " " ^ (Symbol.name f) ^ "\n"); if (f=name) then getnamedty(ty) else getType(f,l))
+		fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
 		in
