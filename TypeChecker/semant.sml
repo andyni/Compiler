@@ -47,7 +47,6 @@ struct
 		let val {exp=_,ty=type1} = trexp exp
 	    	    val {exp=_,ty=type2} = trvar var
 		in
-		    print("Type 1" ^ (Types.printTy type1) ^ " Type 2 "^ Types.printTy type2 ^ "\n");
 		    if type1 = type2 then ()
 		    else ErrorMsg.error pos "Type mismatch in assignment";
 		    {exp=(),ty=Types.UNIT}
@@ -156,10 +155,32 @@ struct
        	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getOpt(Symbol.look(tenv,rt),Types.BOTTOM)})}
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
 	let
-	    fun callTransDec (tenv',venv',{name,ty,pos}::l) = callTransDec(Symbol.enter(tenv',name,transTy(tenv',ty)),venv',l)
-	    | callTransDec(tenv', venv', []) = {tenv=tenv', venv=venv'}
+	    val nameList = []
+            val typeList = []
+            val _ = let 
+		fun extractNameAndType ({name,ty,pos}::l) = (name::nameList; ty::typeList; ())
+		  | extractNameAndType [] = ()
+	    in
+		extractNameAndType(tylist)
+	    end
+	      
+            val tenv' = foldr (fn (name, env) => Symbol.enter(env, name, Types.NAME(name, ref NONE))) tenv nameList  
+	    val typeList' = map (fn t => transTy (tenv',t)) typeList
+	    fun update (name, typ) = let 
+		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
+	    in
+		r:= (SOME typ)
+	    end
+	    val nameTypeTuples = let
+		fun tuplify (l, f::funlist, a::arglist) = tuplify((a,f)::l,funlist,arglist)
+		  | tuplify (l,[],[]) = l
+		  | tuplify (l,_,_) = l
+	    in 
+		tuplify([],typeList',nameList)
+	    end
+	    val _ = map update nameTypeTuples
 	in
-	    callTransDec(tenv,venv,tylist)
+	    {tenv=tenv', venv=venv}
 	end
       | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos1)}]) = 
 	let val SOME(result_ty) = Symbol.look(tenv,rt)
