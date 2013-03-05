@@ -9,15 +9,18 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
+    fun getnamedty(Types.NAME(name,refty)) = getOpt(!refty,Types.BOTTOM)
+    	| getnamedty (ty) = ty
 
-    fun transTy (tenv, Absyn.NameTy(name,pos)) = getOpt(Symbol.look(tenv,name), Types.INT)
+
+    fun transTy (tenv, Absyn.NameTy(name,pos)) = getnamedty(getOpt(Symbol.look(tenv,name), Types.INT))
     | transTy (tenv, Absyn.RecordTy(fieldlist)) =
-      	 let fun createRecList(a,{name,escape,typ,pos}::l) = (name, getOpt(Symbol.look(tenv,typ),Types.INT))::a
+      	 let fun createRecList(a,{name,escape,typ,pos}::l) = (name, getnamedty(getOpt(Symbol.look(tenv,typ),Types.INT)))::a
     	    | createRecList(a,[]) = a
    	 in
 	     Types.RECORD(createRecList([],fieldlist), ref ())
 	 end
-    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getOpt(Symbol.look(tenv,name), Types.INT), ref ()) 
+    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getnamedty(getOpt(Symbol.look(tenv,name), Types.INT)), ref ()) 
 
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
@@ -83,7 +86,7 @@ struct
 		let val {exp=_, ty=arrtype} = trexp init
 		in
 		    checkInt(trexp size, pos);
-		    if (getOpt(Symbol.look(tenv, typ),Types.NIL) = arrtype) then ()
+		    if (getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL)) = arrtype) then ()
 	     	    else ErrorMsg.error pos "Array type does not match initial value";
 		    {exp=(),ty=arrtype}
 		end
@@ -103,13 +106,13 @@ struct
 		end
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
-	        let val Types.RECORD(fieldlist,u) =  getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref()))
+	        let val Types.RECORD(fieldlist,u) =  getnamedty(getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref())))
 		fun getType(f,(name,ty)::l) = (print ((Symbol.name name) ^ " " ^ (Symbol.name f) ^ "\n"); if (f=name) then ty else getType(f,l))
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
 		in
 		    map checktypes fields;
-		    {exp=(), ty=getOpt(Symbol.look(tenv, typ),Types.NIL)}
+		    {exp=(), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
 		end 
 		    
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
@@ -152,7 +155,7 @@ struct
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,...})=
-       	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getOpt(Symbol.look(tenv,rt),Types.BOTTOM)})}
+       	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getnamedty(getOpt(Symbol.look(tenv,rt),Types.BOTTOM))})}
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
 	let
 	    val nameList = []
@@ -182,22 +185,67 @@ struct
 	in
 	    {tenv=tenv', venv=venv}
 	end
-      | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos1)}]) = 
-	let val SOME(result_ty) = Symbol.look(tenv,rt)
-	    fun transparam {name,escape,typ,pos}=
-		case Symbol.look(tenv,typ) of 
-		    SOME t => {name=name, ty=t}
-                  | NONE => {name=name, ty=Types.BOTTOM} 
-	    val params' = map transparam params
-	    val venv' = Symbol.enter(venv, name, Env.FunEntry{formals = map #ty params', result=result_ty})
-	    fun enterparam ({name,ty},venv) =
-	    	Symbol.enter(venv,name,Env.VarEntry{ty=ty})
-	    val venv'' = foldr enterparam venv' params'
+      | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
+	   let fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
+	     let val SOME(result_ty) = Symbol.look(tenv,rt)
+	         fun transparam {name,escape,typ,pos} = 
+	     	   case Symbol.look(tenv,typ) of 
+		       SOME t => {name=name, ty=getnamedty(t)}
+		     | NONE => {name=name, ty=Types.BOTTOM}
+	         val params' = map transparam params
+	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=getnamedty(result_ty)})
+	     in
+		venv'
+	     end
+	     | addFun({name,params,body,pos, result=NONE}, venv) = 
+	     	 let fun transparam {name,escape,typ,pos} = 
+	     	       case Symbol.look(tenv,typ) of 
+		           SOME t => {name=name, ty=getnamedty(t)}
+		         | NONE => {name=name, ty=Types.BOTTOM}
+	             val params' = map transparam params
+	             val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=Types.UNIT})
+	         in
+		    venv'
+    	         end
+	    val venv'= foldr addFun venv fundec
+	    fun checkFuns(venv) =
+	       let fun doCheck({name,params,body,pos,result=SOME(rt,pos1)}) = 
+		   let val SOME(result_ty) = Symbol.look(tenv,rt)
+		       fun transparam {name,escape,typ,pos} = 
+	                case Symbol.look(tenv,typ) of 
+		          SOME t => {name=name, ty=getnamedty(t)}
+		        | NONE => {name=name, ty=Types.BOTTOM}
+       	               val params' = map transparam params
+	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val venv'' = foldr enterparam venv params'
+		    in
+		 	if (#ty (transExp(venv'',tenv, body)) = getnamedty(result_ty)) 
+			   then () 
+			   else ErrorMsg.error pos "Return type does not match declared function type"
+		    end 
+	       | doCheck({name,params,body,pos,result=NONE}) = 
+		   let val result_ty = Types.UNIT
+		       fun transparam {name,escape,typ,pos} = 
+	                case Symbol.look(tenv,typ) of 
+		          SOME t => {name=name, ty=getnamedty(t)}
+		        | NONE => {name=name, ty=Types.BOTTOM}
+       	               val params' = map transparam params
+	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val venv'' = foldr enterparam venv params'
+		    in
+		 	if (#ty (transExp(venv'',tenv, body)) = result_ty) 
+			   then () 
+			   else ErrorMsg.error pos "Return type does not match declared function type"
+		    end 
+
+		in
+			map doCheck fundec
+		end
 	    in
-		transExp (venv'', tenv, body); 
+		checkFuns(venv');
 		{venv=venv', tenv=tenv}
 	    end
-
+    
 
     fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
 end
