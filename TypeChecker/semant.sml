@@ -161,22 +161,67 @@ struct
 	in
 	    callTransDec(tenv,venv,tylist)
 	end
-      | transDec(venv,tenv,Absyn.FunctionDec[{name,params,body,pos,result=SOME(rt,pos1)}]) = 
-	let val SOME(result_ty) = Symbol.look(tenv,rt)
-	    fun transparam {name,escape,typ,pos}=
-		case Symbol.look(tenv,typ) of 
-		    SOME t => {name=name, ty=t}
-                  | NONE => {name=name, ty=Types.BOTTOM} 
-	    val params' = map transparam params
-	    val venv' = Symbol.enter(venv, name, Env.FunEntry{formals = map #ty params', result=result_ty})
-	    fun enterparam ({name,ty},venv) =
-	    	Symbol.enter(venv,name,Env.VarEntry{ty=ty})
-	    val venv'' = foldr enterparam venv' params'
+      | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
+	   let fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
+	     let val SOME(result_ty) = Symbol.look(tenv,rt)
+	         fun transparam {name,escape,typ,pos} = 
+	     	   case Symbol.look(tenv,typ) of 
+		       SOME t => {name=name, ty=t}
+		     | NONE => {name=name, ty=Types.BOTTOM}
+	         val params' = map transparam params
+	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=result_ty})
+	     in
+		venv'
+	     end
+	     | addFun({name,params,body,pos, result=NONE}, venv) = 
+	     	 let fun transparam {name,escape,typ,pos} = 
+	     	       case Symbol.look(tenv,typ) of 
+		           SOME t => {name=name, ty=t}
+		         | NONE => {name=name, ty=Types.BOTTOM}
+	             val params' = map transparam params
+	             val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=Types.UNIT})
+	         in
+		    venv'
+    	         end
+	    val venv'= foldr addFun venv fundec
+	    fun checkFuns(venv) =
+	       let fun doCheck({name,params,body,pos,result=SOME(rt,pos1)}) = 
+		   let val SOME(result_ty) = Symbol.look(tenv,rt)
+		       fun transparam {name,escape,typ,pos} = 
+	                case Symbol.look(tenv,typ) of 
+		          SOME t => {name=name, ty=t}
+		        | NONE => {name=name, ty=Types.BOTTOM}
+       	               val params' = map transparam params
+	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val venv'' = foldr enterparam venv params'
+		    in
+		 	if (#ty (transExp(venv'',tenv, body)) = result_ty) 
+			   then () 
+			   else ErrorMsg.error pos "Return type does not match declared function type"
+		    end 
+	       | doCheck({name,params,body,pos,result=NONE}) = 
+		   let val result_ty = Types.UNIT
+		       fun transparam {name,escape,typ,pos} = 
+	                case Symbol.look(tenv,typ) of 
+		          SOME t => {name=name, ty=t}
+		        | NONE => {name=name, ty=Types.BOTTOM}
+       	               val params' = map transparam params
+	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val venv'' = foldr enterparam venv params'
+		    in
+		 	if (#ty (transExp(venv'',tenv, body)) = result_ty) 
+			   then () 
+			   else ErrorMsg.error pos "Return type does not match declared function type"
+		    end 
+
+		in
+			map doCheck fundec
+		end
 	    in
-		transExp (venv'', tenv, body); 
+		checkFuns(venv');
 		{venv=venv', tenv=tenv}
 	    end
-
+    
 
     fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
 end
