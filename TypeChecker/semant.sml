@@ -12,20 +12,22 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist")
+    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist"))
     	| getnamedty (ty) = ty
 
 
 
     fun transTy (tenv, Absyn.NameTy(name,pos)) =
-    	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist")
+    	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist"))
     | transTy (tenv, Absyn.RecordTy(fieldlist)) =
-      	 let fun createRecList(a,{name,escape,typ,pos}::l) = createRecList((name, getOpt(Symbol.look(tenv,typ),Types.INT))::a,l)
+      	 let fun createRecList(a,{name,escape,typ,pos}::l) =
+    	createRecList((name, getTyOption(Symbol.look(tenv,typ),pos,("Record field type "^Symbol.name typ^" does not exist" )))::a,l)
     	    | createRecList(a,[]) = a
    	 in
 	     Types.RECORD(createRecList([],fieldlist), ref ())
 	 end
-    | transTy (tenv, Absyn.ArrayTy(name,pos)) = Types.ARRAY(getOpt(Symbol.look(tenv,name), Types.INT), ref ()) 
+    | transTy (tenv, Absyn.ArrayTy(name,pos)) =
+    	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
 
     fun transExp (venv, tenv, topexp) =
 	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
@@ -89,8 +91,8 @@ struct
 
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 		let val {exp=_, ty=arrtype} = trexp init
-		val rettype = getnamedty(getOpt(Symbol.look(tenv,typ),Types.NIL))
-		val Types.ARRAY(acttype,u) = getnamedty(getOpt(Symbol.look(tenv,typ),Types.NIL))
+		val rettype = getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Type of Array "^Symbol.name typ^" does not exist")))
+		val Types.ARRAY(acttype,u) = rettype
 		in
 		    checkInt(trexp size, pos);
 		    print (Types.printTy(arrtype) ^ "\n");
@@ -116,7 +118,7 @@ struct
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
 	        let val Types.RECORD(fieldlist,u) =
-	          getnamedty(getOpt(Symbol.look(tenv,typ), (ErrorMsg.error pos ("No such record type " ^ Symbol.name(typ)); Types.RECORD([], ref()))))
+	          getnamedty(getTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
 		fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
@@ -168,7 +170,8 @@ struct
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,...})=
-      	let val type1 = getnamedty(getOpt(Symbol.look(tenv,rt),Types.BOTTOM))
+      	let val type1 =
+	getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
 	    val {exp,ty=type2} = transExp(venv,tenv,init) 
 	in
 		if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
@@ -219,11 +222,11 @@ struct
 	end
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
 	   let fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
-	     let val SOME(result_ty) = Symbol.look(tenv,rt)
-	         fun transparam {name,escape,typ,pos} = 
-	     	   case Symbol.look(tenv,typ) of 
-		       SOME t => {name=name, ty=getnamedty(t)}
-		     | NONE => {name=name, ty=Types.BOTTOM}
+	     let val result_ty =
+	    	    getTyOption(Symbol.look(tenv,rt),pos,("Declared function type "^Symbol.name rt^" does not exist"))
+	         fun transparam {name,escape,typ,pos} =
+	    	    {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
+
 	         val params' = map transparam params
 	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=getnamedty(result_ty)})
 	     in
@@ -231,9 +234,7 @@ struct
 	     end
 	     | addFun({name,params,body,pos, result=NONE}, venv) = 
 	     	 let fun transparam {name,escape,typ,pos} = 
-	     	       case Symbol.look(tenv,typ) of 
-		           SOME t => {name=name, ty=getnamedty(t)}
-		         | NONE => {name=name, ty=Types.BOTTOM}
+		     {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
 	             val params' = map transparam params
 	             val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=Types.UNIT})
 	         in
@@ -242,11 +243,10 @@ struct
 	    val venv'= foldr addFun venv fundec
 	    fun checkFuns(venv) =
 	       let fun doCheck({name,params,body,pos,result=SOME(rt,pos1)}) = 
-		   let val SOME(result_ty) = Symbol.look(tenv,rt)
+		   let val result_ty =
+	    	      getTyOption(Symbol.look(tenv,rt),pos,("Declared function type "^Symbol.name rt^" does not exist"))
 		       fun transparam {name,escape,typ,pos} = 
-	                case Symbol.look(tenv,typ) of 
-		          SOME t => {name=name, ty=getnamedty(t)}
-		        | NONE => {name=name, ty=Types.BOTTOM}
+		        {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
        	               val params' = map transparam params
 	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
 		       val venv'' = foldr enterparam venv params'
@@ -258,9 +258,7 @@ struct
 	       | doCheck({name,params,body,pos,result=NONE}) = 
 		   let val result_ty = Types.UNIT
 		       fun transparam {name,escape,typ,pos} = 
-	                case Symbol.look(tenv,typ) of 
-		          SOME t => {name=name, ty=getnamedty(t)}
-		        | NONE => {name=name, ty=Types.BOTTOM}
+		         {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
        	               val params' = map transparam params
 	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
 		       val venv'' = foldr enterparam venv params'
