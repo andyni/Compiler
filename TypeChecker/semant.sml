@@ -107,7 +107,7 @@ struct
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
 	        let val Types.RECORD(fieldlist,u) =  getnamedty(getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref())))
-		fun getType(f,(name,ty)::l) = (print ((Symbol.name name) ^ " " ^ (Symbol.name f) ^ "\n"); if (f=name) then ty else getType(f,l))
+		fun getType(f,(name,ty)::l) = (print ((Symbol.name name) ^ " " ^ (Symbol.name f) ^ "\n"); if (f=name) then getnamedty(ty) else getType(f,l))
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
 		in
@@ -123,7 +123,7 @@ struct
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
 		let val {exp=_, ty=vartype} = trvar v
 		    fun checkList([]) = (ErrorMsg.error pos "Id not in Record"; {exp=(), ty=Types.BOTTOM})
-		      | checkList((sym,ty)::l) = if (id=sym) then {exp=(), ty=ty} else checkList(l)	
+		      | checkList((sym,ty)::l) = if (id=sym) then {exp=(), ty=getnamedty(ty)} else checkList(l)	
 		in
 		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist)
 				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.BOTTOM})
