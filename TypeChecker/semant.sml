@@ -2,6 +2,9 @@ structure Semant :> SEMANT =
 struct
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
+
+    fun getTyOption(SOME(k), pos, errorstmt) = k
+      | getTyOption(NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.BOTTOM)
         
     fun checkExp ({exp=(),ty}, sym, venv, pos) =
     	let val ty2 = Symbol.look(venv, sym)
@@ -9,11 +12,13 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getOpt(!refty,Types.BOTTOM))
+    fun getnamedty(Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist")
     	| getnamedty (ty) = ty
 
 
-    fun transTy (tenv, Absyn.NameTy(name,pos)) = getOpt(Symbol.look(tenv,name), Types.INT)
+
+    fun transTy (tenv, Absyn.NameTy(name,pos)) =
+    	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist")
     | transTy (tenv, Absyn.RecordTy(fieldlist)) =
       	 let fun createRecList(a,{name,escape,typ,pos}::l) = createRecList((name, getOpt(Symbol.look(tenv,typ),Types.INT))::a,l)
     	    | createRecList(a,[]) = a
@@ -84,14 +89,15 @@ struct
 
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 		let val {exp=_, ty=arrtype} = trexp init
+		val rettype = getnamedty(getOpt(Symbol.look(tenv,typ),Types.NIL))
 		val Types.ARRAY(acttype,u) = getnamedty(getOpt(Symbol.look(tenv,typ),Types.NIL))
 		in
 		    checkInt(trexp size, pos);
 		    print (Types.printTy(arrtype) ^ "\n");
-		    print (Types.printTy(acttype) ^ "\n");
-		    if (acttype = arrtype) then ()
+		    print (Types.printTy(getnamedty(acttype)) ^ "\n");
+		    if (getnamedty(acttype) = arrtype) then ()
 	     	    else ErrorMsg.error pos "Array type does not match initial value";
-		    {exp=(),ty=arrtype}
+		    {exp=(),ty=rettype}
 		end
 
 	      | trexp(Absyn.SeqExp l) =
@@ -109,7 +115,8 @@ struct
 		end
 
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
-	        let val Types.RECORD(fieldlist,u) =  getnamedty(getOpt(Symbol.look(tenv,typ), Types.RECORD([], ref())))
+	        let val Types.RECORD(fieldlist,u) =
+	          getnamedty(getOpt(Symbol.look(tenv,typ), (ErrorMsg.error pos ("No such record type " ^ Symbol.name(typ)); Types.RECORD([], ref()))))
 		fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
@@ -136,7 +143,9 @@ struct
 		let val {exp=_, ty=vartype} = trvar v
 		in
 		    checkInt(trexp exp, pos);
-		    {exp=(), ty=vartype}
+		    print ("TYPEA : "^ Types.printTy(vartype)^"\n");
+		    case vartype of Types.ARRAY(acttype,u) => {exp=(),ty=getnamedty(acttype)}
+		    	| _ => (ErrorMsg.error pos "Not an array"; {exp=(), ty=Types.BOTTOM})
 		end
 	in
 	    trexp(topexp)
@@ -155,10 +164,16 @@ struct
     and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,...}) =
 	let val {exp,ty} = transExp(venv,tenv,init)
 	in
+	    print ("Var "^Symbol.name name^" has type "^Types.printTy(ty)^"\n");
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
-      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,...})=
-       	{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=getnamedty(getOpt(Symbol.look(tenv,rt),Types.BOTTOM))})}
+      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,...})=
+      	let val type1 = getnamedty(getOpt(Symbol.look(tenv,rt),Types.BOTTOM))
+	    val {exp,ty=type2} = transExp(venv,tenv,init) 
+	in
+		if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
+		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1})}
+	end
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
 	let
             val nameList = let 
