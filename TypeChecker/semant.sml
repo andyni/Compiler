@@ -169,11 +169,7 @@ struct
 	      
             val tenv' = foldr (fn (name, env) => Symbol.enter(env, name, Types.NAME(name, ref NONE))) tenv nameList  
 	    val typeList' = map (fn t => transTy (tenv',t)) typeList
-	    fun update (name, typ) = let 
-		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
-	    in
-		r:= (SOME typ)
-	    end
+	    
 	    val nameTypeTuples = let
 		fun tuplify (l, f::funlist, a::arglist) = tuplify((a,f)::l,funlist,arglist)
 		  | tuplify (l,[],[]) = l
@@ -181,9 +177,15 @@ struct
 	    in 
 		tuplify([],typeList',nameList)
 	    end
-	    val _ = map update nameTypeTuples
+
+	    fun update (name, typ) = let 
+		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
+	    in
+		r:= (SOME typ)
+	    end
 	in
-	    {tenv=tenv', venv=venv}
+	    (map update nameTypeTuples;
+	    {tenv=tenv', venv=venv})
 	end
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
 	   let fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
