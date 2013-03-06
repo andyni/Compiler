@@ -47,7 +47,7 @@ struct
 		      | tuplify (l,[],[]) = l
 		      | tuplify (l,_,_) = (ErrorMsg.error pos "The number of parameters does not match function definition."; l)  
 		    fun checkTyExp({exp,ty},ty2) = if ty=ty2 then ()
-						   else ErrorMsg.error pos "Type mismatch"
+						   else ErrorMsg.error pos "Type mismatch in function call"
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result}) =>
