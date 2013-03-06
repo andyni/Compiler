@@ -80,8 +80,11 @@ struct
 	            fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f)::l,funlist,arglist)
 		      | tuplify (l,[],[]) = l
 		      | tuplify (l,_,_) = (ErrorMsg.error pos "The number of parameters does not match function definition."; l)  
-		    fun checkTyExp({exp,ty},ty2) = if ty=ty2 then ()
-						   else ErrorMsg.error pos "Type mismatch in function call"
+		    fun checkTyExp({exp,ty},ty2) = case ty2 of Types.RECORD(fs,us) =>
+			if ty=Types.NIL then () else if ty=ty2 then ()
+			else ErrorMsg.error pos "Type mismatch in function call"
+			| _ =>  if ty=ty2 then ()
+			else ErrorMsg.error pos "Type mismatch in function call"
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result}) =>
@@ -93,7 +96,10 @@ struct
 		let val {exp=_,ty=type1} = trexp exp
 	    	    val {exp=_,ty=type2} = trvar var
 		in
-		    if type1 = type2 then ()
+		    case type2 of Types.RECORD(fields,u) =>
+		    	 if (type1=Types.NIL) then () else if type1 = type2 then ()
+		    	    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)))
+		    | _ => if type1 = type2 then ()
 		    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)));
 		    {exp=(),ty=Types.UNIT}
 		end
@@ -139,8 +145,13 @@ struct
 		    checkInt(trexp size, pos);
 		    print (Types.printTy(arrtype) ^ "\n");
 		    print (Types.printTy(getnamedty(acttype)) ^ "\n");
-		    if (getnamedty(acttype) = arrtype) then ()
-	     	    else ErrorMsg.error pos "Array type does not match initial value";
+		    case getnamedty(acttype) of Types.RECORD(fs,us) =>
+		    	 if (arrtype=Types.NIL) then () else 
+			    if (getnamedty(acttype) = arrtype) then ()
+	     	    	    else ErrorMsg.error pos "Array type does not match initial value"
+		    | _ =>  if (getnamedty(acttype) = arrtype) then ()
+	     	    	    else ErrorMsg.error pos "Array type does not match initial value";
+		
 		    {exp=(),ty=rettype}
 		end
 
@@ -163,7 +174,16 @@ struct
 	          getnamedty(getTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
 		fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
-		fun checktypes(symbol, exp, post) = if (getType(symbol,fieldlist)=(#ty (trexp exp))) then () else ErrorMsg.error pos "Type mismatch in record"
+		fun checktypes(symbol, exp, post) =
+		    let val fieldty = getType(symbol,fieldlist)
+		    	val {exp=_,ty=expty} = trexp exp
+			in
+			   case fieldty of Types.RECORD(fs,us) => if expty = Types.NIL then () else 
+			   if (fieldty=expty)
+			   then () else ErrorMsg.error pos "Type mismatch in record"
+			   | _ => if (fieldty=expty)
+			   then () else ErrorMsg.error pos "Type mismatch in record"
+		        end
 		in
 		    map checktypes fields;
 		    {exp=(), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
@@ -205,9 +225,10 @@ struct
 	    callTransDec(decs)
 	end       
 
-    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,...}) =
+    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,...}) =
 	let val {exp,ty} = transExp(venv,tenv,init)
 	in
+	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
 	    print ("Var "^Symbol.name name^" has type "^Types.printTy(ty)^"\n");
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
@@ -216,7 +237,9 @@ struct
 	getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
 	    val {exp,ty=type2} = transExp(venv,tenv,init) 
 	in
-		if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
+		case type1 of Types.RECORD(fieldlist,u) => 
+		     if(type2=Types.NIL) then () else if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization"
+		     | _ => if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
 		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1})}
 	end
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
@@ -292,8 +315,13 @@ struct
        	               val params' = map transparam params
 	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
 		       val venv'' = foldr enterparam venv params'
+		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body)
 		    in
-		 	if (#ty (transExp(venv'',tenv, body)) = getnamedty(result_ty)) 
+			case getnamedty(result_ty) of Types.RECORD(fs,us)=> 
+		 	if (tytrans = Types.NIL) then () else if ((tytrans) = getnamedty(result_ty)) 
+			   then () 
+			   else ErrorMsg.error pos "Return type does not match declared function type"
+		 	|_ => if ((tytrans) = getnamedty(result_ty)) 
 			   then () 
 			   else ErrorMsg.error pos "Return type does not match declared function type"
 		    end 
