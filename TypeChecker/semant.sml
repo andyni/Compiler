@@ -155,6 +155,7 @@ struct
 		    {exp=(),ty=rettype}
 		end
 
+              | trexp(Absyn.SeqExp []) = {exp=(), ty=Types.UNIT}
 	      | trexp(Absyn.SeqExp l) =
 		let fun tycheckseq ([], r) = r
 		      | tycheckseq ((exp,pos)::l,r) = tycheckseq(l,trexp exp)
@@ -252,7 +253,7 @@ struct
 	    end
 
 	    val pos = #pos (List.nth(tylist,0))
-	    val _ = foldr (fn (item,set) => if Symbol.look(set,item) <> NONE then (ErrorMsg.error pos "Repeated type declaration in mutually recursive block."; set) else Symbol.enter(set,item,0)) Symbol.empty nameList
+	    val blocklist = foldr (fn (item,set) => if Symbol.look(set,item) <> NONE then (ErrorMsg.error pos "Repeated type declaration in mutually recursive block."; set) else Symbol.enter(set,item,0)) Symbol.empty nameList
 
 	    val typeList = let 
 		fun extractType (list,{name,ty,pos}::l) = extractType(ty::list,l)
@@ -272,10 +273,15 @@ struct
 		tuplify([],typeList',nameList)
 	    end
 
+	    fun checknamedty (Types.NAME(name,refty), name2, pos) = 
+	    	(if name=name2 then ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"
+	    	else (); checknamedty(getTyOption(!refty,0,"Named type does notexist"),name2,pos))
+      	    | checknamedty (ty,name,pos) = true
+
 	    fun update (name, typ) = let 
 		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
 	    in
-	       	r:= (SOME typ)
+		if checknamedty(typ,name,pos) then r:= (SOME typ) else r:=(SOME Types.BOTTOM)
 	    end
 	    
 	    fun printTypes (name,typ) = let
