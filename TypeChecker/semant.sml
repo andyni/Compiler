@@ -5,6 +5,10 @@ struct
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
 
+
+    fun checkString ({exp=_,ty}, pos) = case ty of Types.STRING => ()
+                                | _ => ErrorMsg.error pos "string required"
+
     fun getTyOption (SOME(k), pos, errorstmt) = k
       | getTyOption (NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.BOTTOM)
         
@@ -30,10 +34,40 @@ struct
     	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
 		   
     fun transExp (venv, tenv, topexp) =
-	let fun trexp(Absyn.OpExp{left, oper=_, right, pos}) =
-                     (checkInt(trexp left,pos);
-	              checkInt(trexp right,pos);
-                      {exp=(), ty=Types.INT})
+	let fun trexp(Absyn.OpExp{left, oper, right, pos}) =
+		(* Arithmetic Operations *)
+		if (oper=Absyn.PlusOp orelse oper=Absyn.MinusOp orelse oper=Absyn.TimesOp orelse oper=Absyn.DivideOp) 
+		then
+                    (checkInt(trexp left,pos);
+	             checkInt(trexp right,pos);
+                     {exp=(), ty=Types.INT})
+		(* Comparison Operations *)
+		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
+		then
+		    (case #ty (trexp left) of
+			 Types.INT => (checkInt(trexp left, pos); checkInt(trexp right, pos))
+		       | Types.STRING => (checkString(trexp left, pos); checkString(trexp right, pos))
+		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
+		     {exp=(), ty=Types.INT}) 
+
+		(* EQ and NEQ Comparisons *)
+		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
+		then
+		    let 
+			val {exp=exp1, ty=ty1} = trexp left
+			val {exp=exp2, ty=ty2} = trexp right
+		    in
+			(case (ty1,ty2) of
+			     (Types.INT, Types.INT) => {exp=(),ty=Types.INT}
+			   | (Types.STRING, Types.STRING) => {exp=(),ty=Types.INT}
+			   | (Types.RECORD(_), Types.RECORD(_)) => {exp=(),ty=Types.INT}
+		           | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(),ty=Types.INT}
+			   | (Types.RECORD(_), Types.NIL) => {exp=(),ty=Types.INT}
+			   | (Types.NIL, Types.RECORD(_)) => {exp=(),ty=Types.INT}
+		           | _ => (ErrorMsg.error pos "Type mismatch in EQ/NEQ comparison."; {exp=(),ty=Types.BOTTOM}))
+		    end
+		else (ErrorMsg.error pos "Operation not supported"; {exp=(),ty=Types.BOTTOM})
+
     	      | trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
   	      | trexp(Absyn.VarExp v) = trvar v
 	      | trexp(Absyn.NilExp) = {exp=(), ty=Types.NIL}
