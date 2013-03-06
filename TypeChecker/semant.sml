@@ -251,6 +251,9 @@ struct
 		extractName([], tylist)
 	    end
 
+	    val pos = #pos (List.nth(tylist,0))
+	    val _ = foldr (fn (item,set) => if Symbol.look(set,item) <> NONE then (ErrorMsg.error pos "Repeated type declaration in mutually recursive block."; set) else Symbol.enter(set,item,0)) Symbol.empty nameList
+
 	    val typeList = let 
 		fun extractType (list,{name,ty,pos}::l) = extractType(ty::list,l)
 		  | extractType (list,[]) = list
