@@ -289,7 +289,11 @@ struct
 	    {tenv=tenv', venv=venv})
 	end
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
-	   let fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
+	   let val _ = foldr (fn ({name,pos,...},set) => 
+	    	if Symbol.look(set,name) <> NONE then (ErrorMsg.error pos
+	    	"Repeated function declaration in mutually recursive block."; set) 
+		else Symbol.enter(set,name,0)) Symbol.empty fundec
+	   fun addFun({name,params,body,pos,result=SOME(rt,pos1)},venv)=
 	     let val result_ty =
 	    	    getTyOption(Symbol.look(tenv,rt),pos,("Declared function type "^Symbol.name rt^" does not exist"))
 	         fun transparam {name,escape,typ,pos} =
