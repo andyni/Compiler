@@ -274,8 +274,8 @@ struct
 	    end
 
 	    fun checknamedty (Types.NAME(name,refty), name2, pos) = 
-	    	(if name=name2 then ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"
-	    	else (); checknamedty(getTyOption(!refty,0,"Named type does notexist"),name2,pos))
+	    	(if name=name2 then (ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"; false)
+	    	else checknamedty(getTyOption(!refty,0,"Named type "^Symbol.name name^" does not exist"),name2,pos))
       	    | checknamedty (ty,name,pos) = true
 
 	    fun update (name, typ) = let 
