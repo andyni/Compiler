@@ -143,8 +143,6 @@ struct
 		val Types.ARRAY(acttype,u) = rettype
 		in
 		    checkInt(trexp size, pos);
-		    print (Types.printTy(arrtype) ^ "\n");
-		    print (Types.printTy(getnamedty(acttype)) ^ "\n");
 		    case getnamedty(acttype) of Types.RECORD(fs,us) =>
 		    	 if (arrtype=Types.NIL) then () else 
 			    if (getnamedty(acttype) = arrtype) then ()
@@ -208,7 +206,6 @@ struct
 		let val {exp=_, ty=vartype} = trvar v
 		in
 		    checkInt(trexp exp, pos);
-		    print ("TYPEA : "^ Types.printTy(vartype)^"\n");
 		    case vartype of Types.ARRAY(acttype,u) => {exp=(),ty=getnamedty(acttype)}
 		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(), ty=Types.BOTTOM})
 		end
@@ -230,7 +227,6 @@ struct
 	let val {exp,ty} = transExp(venv,tenv,init)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
-	    print ("Var "^Symbol.name name^" has type "^Types.printTy(ty)^"\n");
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,...})=
@@ -282,7 +278,7 @@ struct
 	    fun update (name, typ) = let 
 		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
 	    in
-		if checknamedty(typ,name,pos) then r:= (SOME typ) else r:=(SOME Types.BOTTOM);
+		if checknamedty(typ,name,pos) then r:= (SOME typ) else r:=(SOME Types.BOTTOM)
 	    end
 	    
 	    fun printTypes (name,typ) = let
@@ -292,7 +288,6 @@ struct
 		end
 	in
 	    (map update nameTypeTuples;
-	    map printTypes nameTypeTuples;
 	    {tenv=tenv', venv=venv})
 	end
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
