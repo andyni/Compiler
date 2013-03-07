@@ -18,7 +18,7 @@ struct
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
-    fun getnamedty (Types.NAME(name,refty)) = getnamedty(getTyOption(!refty,0,"Named type does not exist"))
+    fun getnamedty (Types.NAME(name,refty)) = (getnamedty(getTyOption(!refty,0,"Named type does not exist")))
       | getnamedty (ty) = ty
 
     fun transTy (tenv, Absyn.NameTy(name,pos)) =
@@ -274,14 +274,15 @@ struct
 	    end
 
 	    fun checknamedty (Types.NAME(name,refty), name2, pos) = 
-	    	(if name=name2 then ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"
-	    	else (); checknamedty(getTyOption(!refty,0,"Named type does notexist"),name2,pos))
+	    	(if name=name2 then (ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"; false)
+	    	else case !refty of SOME(k) => checknamedty(k,name2,pos)
+		| NONE => true)
       	    | checknamedty (ty,name,pos) = true
 
 	    fun update (name, typ) = let 
 		val Types.NAME(n,r) = valOf(Symbol.look(tenv',name))
 	    in
-		if checknamedty(typ,name,pos) then r:= (SOME typ) else r:=(SOME Types.BOTTOM)
+		if checknamedty(typ,name,pos) then r:= (SOME typ) else r:=(SOME Types.BOTTOM);
 	    end
 	    
 	    fun printTypes (name,typ) = let
