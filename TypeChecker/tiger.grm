@@ -98,7 +98,7 @@ decs : dec decs (dec::decs)
      | (nil) 
 
 parenexp : exp (exp)
-	 | (A.NilExp)	 
+	 | (A.SeqExp([]))	 
 
 dec : tydecs (A.TypeDec(tydecs))
      | vardec (vardec)
