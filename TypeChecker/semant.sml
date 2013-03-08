@@ -1,26 +1,33 @@
 structure Semant :> SEMANT =
 struct
+    (* int reference used to determine nest level of breaks. >0 is valid.*)
     val breakLevel = ref 0
 
+    (* checks if {exp,ty} has type int *)
     fun checkInt ({exp=_,ty}, pos) = case ty of Types.INT => ()
                                 | _ => ErrorMsg.error pos "integer required"
 
-
+    (* checks if {exp,ty} has type string *)
     fun checkString ({exp=_,ty}, pos) = case ty of Types.STRING => ()
                                 | _ => ErrorMsg.error pos "string required"
 
+    (* Returns element if SOME, prints error msg if NONE *)
     fun getTyOption (SOME(k), pos, errorstmt) = k
       | getTyOption (NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.BOTTOM)
         
+    (* Checks if two types are the same *)
     fun checkExp ({exp=(),ty}, sym, venv, pos) =
     	let val ty2 = Symbol.look(venv, sym)
 	    in 
 	       if ty=getOpt(ty2,Types.NIL) then ()
                else ErrorMsg.error pos "Type mismatch"
 	    end
+
+    (* Returns actual type *)
     fun getnamedty (Types.NAME(name,refty)) = (getnamedty(getTyOption(!refty,0,"Named type does not exist")))
       | getnamedty (ty) = ty
 
+    (* Transforms Absyn Ty's into Types *)
     fun transTy (tenv, Absyn.NameTy(name,pos)) =
     	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist"))
       | transTy (tenv, Absyn.RecordTy(fieldlist)) =
@@ -57,6 +64,7 @@ struct
 			val {exp=exp1, ty=ty1} = trexp left
 			val {exp=exp2, ty=ty2} = trexp right
 		    in
+			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
 			(case (ty1,ty2) of
 			     (Types.INT, Types.INT) => {exp=(),ty=Types.INT}
 			   | (Types.STRING, Types.STRING) => {exp=(),ty=Types.INT}
@@ -68,30 +76,39 @@ struct
 		    end
 		else (ErrorMsg.error pos "Operation not supported"; {exp=(),ty=Types.BOTTOM})
 
+              (* trvar handles variable cases *)
+	      | trexp(Absyn.VarExp v) = trvar v
+
+	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
     	      | trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
-  	      | trexp(Absyn.VarExp v) = trvar v
 	      | trexp(Absyn.NilExp) = {exp=(), ty=Types.NIL}
+  	      | trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
+
+	      (* Checks if breaks are properly placed in for/while loops *)
 	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
 					     else (ErrorMsg.error pos "Break not properly nested.");
 	                                     {exp=(), ty=Types.BOTTOM})
-  	      | trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
+
+	      (* Checks types of all function parameters before function call *)
 	      | trexp(Absyn.CallExp{func,args,pos}) =
 		let
-	            fun tuplify (l, f::funlist, a::arglist) = tuplify((trexp a,f)::l,funlist,arglist)
-		      | tuplify (l,[],[]) = l
-		      | tuplify (l,_,_) = (ErrorMsg.error pos "The number of parameters does not match function definition."; l)  
-		    fun checkTyExp({exp,ty},ty2) = case ty2 of Types.RECORD(fs,us) =>
-			if ty=Types.NIL then () else if ty=ty2 then ()
-			else ErrorMsg.error pos "Type mismatch in function call"
-			| _ =>  if ty=ty2 then ()
-			else ErrorMsg.error pos "Type mismatch in function call"
+		    (* Checks if two types are the same. RECORD types can be RECORD or NIL. *)
+		    fun checkTyExp({exp,ty},ty2) = 
+			case ty2 of Types.RECORD(fs,us) =>
+				    if ty=Types.NIL then () 
+				    else if ty=ty2 then ()
+				    else ErrorMsg.error pos "Type mismatch in function call"
+				  | _ =>  if ty=ty2 then ()
+					  else ErrorMsg.error pos "Type mismatch in function call"
+		    val arglist = map (fn a => trexp a) args;
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result}) =>
-				    (map checkTyExp (tuplify([],formals,args)); {exp=(), ty=result})
+				    (map checkTyExp (ListPair.zip(arglist,formals)); {exp=(), ty=result})
 				  | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
 		end
 
+	      (* Checks if variable type and expression type are valid for assignment *)
 	      | trexp(Absyn.AssignExp{var, exp, pos}) =
 		let val {exp=_,ty=type1} = trexp exp
 	    	    val {exp=_,ty=type2} = trvar var
@@ -104,6 +121,7 @@ struct
 		    {exp=(),ty=Types.UNIT}
 		end
 
+	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
 	      | trexp(Absyn.IfExp{test, then', else', pos}) = 
 		let val {exp=_, ty=tythen} = trexp then'
 	            val {exp=_, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
@@ -114,6 +132,7 @@ struct
                       | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=(), ty=Types.UNIT})
 		end
 
+	      (* The While loop body should be TYPE.Unit *)
 	      | trexp(Absyn.WhileExp{test, body, pos}) = 
 	        (breakLevel:=(!breakLevel)+1;
 		let val {exp=_, ty=ty1} = trexp body
@@ -124,6 +143,7 @@ struct
 		    	{exp=(), ty=Types.UNIT}
 		end)
 
+	      (* The For loop body should be TYPE.Unit *)
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
 	        (breakLevel:=(!breakLevel)+1;
 		let val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT})
@@ -136,7 +156,7 @@ struct
       		    {exp=(), ty=Types.UNIT}
 		end)
 		
-
+	      (* Checks if array type matches initial value *)
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
 		let val {exp=_, ty=arrtype} = trexp init
 		val rettype = getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Type of Array "^Symbol.name typ^" does not exist")))
@@ -153,6 +173,7 @@ struct
 		    {exp=(),ty=rettype}
 		end
 
+	      (* Recursively checks each exp. Empty exps are of type UNIT *)
               | trexp(Absyn.SeqExp []) = {exp=(), ty=Types.UNIT}
 	      | trexp(Absyn.SeqExp l) =
 		let fun tycheckseq ([], r) = r
@@ -168,31 +189,34 @@ struct
 		    transExp(venv',tenv', body)
 		end
 
+	      (* Checks each record field type individually *)
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
 	        let val Types.RECORD(fieldlist,u) =
-	          getnamedty(getTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
-		fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
-		  | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
-		fun checktypes(symbol, exp, post) =
-		    let val fieldty = getType(symbol,fieldlist)
-		    	val {exp=_,ty=expty} = trexp exp
+			getnamedty(getTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
+		    fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
+		      | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
+		    fun checktypes(symbol, exp, post) =
+			let val fieldty = getType(symbol,fieldlist)
+		    	    val {exp=_,ty=expty} = trexp exp
 			in
-			   case fieldty of Types.RECORD(fs,us) => if expty = Types.NIL then () else 
-			   if (fieldty=expty)
-			   then () else ErrorMsg.error pos "Type mismatch in record"
-			   | _ => if (fieldty=expty)
-			   then () else ErrorMsg.error pos "Type mismatch in record"
+			    case fieldty of Types.RECORD(fs,us) => if expty = Types.NIL then () else 
+								   if (fieldty=expty)
+								   then () else ErrorMsg.error pos "Type mismatch in record"
+					  | _ => if (fieldty=expty)
+						 then () else ErrorMsg.error pos "Type mismatch in record"
 		        end
 		in
 		    map checktypes fields;
 		    {exp=(), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
 		end 
 		    
+	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
 	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=getnamedty ty}
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.BOTTOM}))
 
+	      (* Record field variables *)
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
 		let val {exp=_, ty=vartype} = trvar v
 		    fun checkList([]) = (ErrorMsg.error pos "Id not in Record"; {exp=(), ty=Types.BOTTOM})
@@ -202,6 +226,7 @@ struct
 				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.BOTTOM})
 		end
 
+	      (* Array subscript variables *)
               | trvar(Absyn.SubscriptVar(v,exp,pos)) =
 		let val {exp=_, ty=vartype} = trvar v
 		in
@@ -213,6 +238,7 @@ struct
 	    trexp(topexp)
 	end
 
+    (* Calls transDec for each dec block. *)
     and transDecs (venv, tenv, decs) = 
 	let
 	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv'} = transDec(venv,tenv,a) 
@@ -222,13 +248,14 @@ struct
 	in
 	    callTransDec(decs)
 	end       
-
+    (* Enters variables with no type dec into venv*)
     and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,...}) =
 	let val {exp,ty} = transExp(venv,tenv,init)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
 	end
+      (* Enters variables with type dec into venv *)
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,...})=
       	let val type1 =
 	getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
@@ -239,6 +266,7 @@ struct
 		     | _ => if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
 		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1})}
 	end
+      (* Enters type declarations into tenv *)
       | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
 	let
             val nameList = let 
@@ -248,6 +276,7 @@ struct
 		extractName([], tylist)
 	    end
 
+	    (* Checks if there are repeated type names *)
 	    val pos = #pos (List.nth(tylist,0))
 	    val blocklist = foldr (fn (item,set) => if Symbol.look(set,item) <> NONE then (ErrorMsg.error pos "Repeated type declaration in mutually recursive block."; set) else Symbol.enter(set,item,0)) Symbol.empty nameList
 
@@ -261,14 +290,9 @@ struct
             val tenv' = foldr (fn (name, env) => Symbol.enter(env, name, Types.NAME(name, ref NONE))) tenv nameList  
 	    val typeList' = map (fn t => transTy (tenv',t)) typeList
 	    
-	    val nameTypeTuples = let
-		fun tuplify (l, f::funlist, a::arglist) = tuplify((a,f)::l,funlist,arglist)
-		  | tuplify (l,[],[]) = l
-		  | tuplify (l,_,_) = l
-	    in 
-		tuplify([],typeList',nameList)
-	    end
+	    val nameTypeTuples = ListPair.zip(nameList, typeList')
 
+	    (* Checks if there are infinite loops in type decs *)
 	    fun checknamedty (Types.NAME(name,refty), name2, pos) = 
 	    	(if name=name2 then (ErrorMsg.error pos "Can not use mutually recursive types except through records/arrays"; false)
 	    	else case !refty of SOME(k) => checknamedty(k,name2,pos)
@@ -290,6 +314,8 @@ struct
 	    (map update nameTypeTuples;
 	    {tenv=tenv', venv=venv})
 	end
+
+      (* Enters functions into tenv *)
       | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
 	   let val _ = foldr (fn ({name,pos,...},set) => 
 	    	if Symbol.look(set,name) <> NONE then (ErrorMsg.error pos
@@ -355,6 +381,6 @@ struct
 		{venv=venv', tenv=tenv}
 	    end
     
-
+    (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
     fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
 end
