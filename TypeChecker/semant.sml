@@ -104,8 +104,10 @@ struct
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result}) =>
-				    (map checkTyExp (ListPair.zip(arglist,formals)); {exp=(), ty=result})
-				  | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
+		    (if List.length(arglist)<>List.length(formals) 
+	      	    then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
+		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(), ty=result})
+		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
 		end
 
 	      (* Checks if variable type and expression type are valid for assignment *)
@@ -191,8 +193,11 @@ struct
 
 	      (* Checks each record field type individually *)
 	      | trexp(Absyn.RecordExp{fields, typ, pos}) = 
-	        let val Types.RECORD(fieldlist,u) =
-			getnamedty(getTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
+	        let 
+		    fun getRecTyOption (SOME(k), pos, errorstmt) = k
+      		    | getRecTyOption (NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.RECORD([], ref ()))
+		    val Types.RECORD(fieldlist,u) =
+			getnamedty(getRecTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
 		    fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		      | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		    fun checktypes(symbol, exp, post) =
