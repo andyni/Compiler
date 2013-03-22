@@ -15,6 +15,13 @@ tiger.lex
 errormsg.sml
 parse.sml
 tiger.grm
+temp.sig
+temp.sml
+frame.sig
+mipsframe.sml
+translate.sml
+
+
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm
 $/basis.cm
