@@ -8,3 +8,8 @@ sig
     val formals : level -> access list
     val allocLocal : level -> bool -> access
 end
+
+structure Translate : TRANSLATE = 
+struct
+type access = level * Frame.access
+end
