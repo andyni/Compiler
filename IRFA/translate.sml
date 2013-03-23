@@ -1,25 +1,23 @@
 structure Translate : TRANSLATE = 
 struct 
-  structure Frame : FRAME = MipsFrame
+  structure F : FRAME = MipsFrame
   structure A = Absyn
-			      
-  type level = Frame.frame
-  type access = level * Frame.access
 
- 
+  datatype level = Outermost
+  	   	 | InnerLevel of {parent: level, frame: F.frame, id : unit ref}
 
-  fun newLevel {parent = lev, name = label, formals = formlist} = Frame.newFrame({name = label, formals = formlist})
+  type access = level * F.access
 
-  fun formals t =  let val f =  Frame.forms(t)
-      	      	       fun conc (ans, a::l) = conc((t,a)::ans,l)
-		           | conc (ans, []) =  ans
-		   in
-			conc([],f)
-		   end	
+  val outermost = Outermost
 
-  fun allocLocal t = (fn boolean => case boolean of
-					  true => (t, Frame.allocLocal(t)(true))
-					| false => (t, Frame.allocLocal(t)(false)))
-
-  val outermost = newLevel ({parent = nil, name = Temp.newlabel(), formals = []})				     
+  fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
+  fun formals l =     let val InnerLevel{parent=_,frame=f, id = _} = l
+		      val forms = F.forms(f)
+		      fun createAccessTuple (a::list) = (l,a)::createAccessTuple(list)
+			| createAccessTuple [] = []
+		  in
+		      createAccessTuple(forms)
+		  end
+  fun allocLocal (InnerLevel{parent=p, frame=f, id=id}) = 
+			 (fn(boolean) => (InnerLevel{parent=p, frame=f, id=id},F.allocLocal(f)(boolean)))	
 end
