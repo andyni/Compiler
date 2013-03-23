@@ -7,7 +7,7 @@ datatype access = InFrame of int
 			       
 val wordsize = 4
 	   
-fun newFrame f = let val {name=label, forms=formals} = f
+fun newFrame f = let val {name=label, formals=formals} = f
 		 in
 		     {name=label, formals=formals, num = ref 0}
 		 end
