@@ -40,7 +40,7 @@ struct
       | transTy (tenv, Absyn.ArrayTy(name,pos)) =
     	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
 		   
-    fun transExp (venv, tenv, topexp) =
+    fun transExp (venv, tenv, topexp, level) =
 	let fun trexp(Absyn.OpExp{left, oper, right, pos}) =
 		(* Arithmetic Operations *)
 		if (oper=Absyn.PlusOp orelse oper=Absyn.MinusOp orelse oper=Absyn.TimesOp orelse oper=Absyn.DivideOp) 
@@ -103,7 +103,7 @@ struct
 		    val arglist = map (fn a => trexp a) args;
 		    val funcval = Symbol.look(venv,func)
 		in
-	            case funcval of SOME(Env.FunEntry{formals,result}) =>
+	            case funcval of SOME(Env.FunEntry{formals,result,...}) =>
 		    (if List.length(arglist)<>List.length(formals) 
 	      	    then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
 		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(), ty=result})
@@ -148,8 +148,9 @@ struct
 	      (* The For loop body should be TYPE.Unit *)
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
 	        (breakLevel:=(!breakLevel)+1;
-		let val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT})
-		    val {exp=_, ty=ty1} = transExp(venv',tenv,body) 
+		let val venv' = Symbol.enter(venv, var,
+	      Env.VarEntry{ty=Types.INT, access=Translate.allocLocal(level)(!escape)})
+		    val {exp=_, ty=ty1} = transExp(venv',tenv,body,level) 
 		in 
 		    checkInt(trexp lo, pos);
 		    checkInt(trexp hi, pos);
@@ -186,9 +187,9 @@ struct
 
 	      (* Let Expression (calls transdec) *)
 	      | trexp (Absyn.LetExp{decs,body,pos}) =
-		let val {venv=venv',tenv=tenv'} = transDecs(venv,tenv,decs)
+		let val {venv=venv',tenv=tenv'} = transDecs(venv,tenv,decs,level)
 		in 
-		    transExp(venv',tenv', body)
+		    transExp(venv',tenv', body, level)
 		end
 
 	      (* Checks each record field type individually *)
@@ -218,7 +219,7 @@ struct
 	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty}) => {exp=(), ty=getnamedty ty}
+	          of SOME(Env.VarEntry{ty,access}) => {exp=(), ty=getnamedty ty}
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.BOTTOM}))
 
 	      (* Record field variables *)
@@ -244,35 +245,37 @@ struct
 	end
 
     (* Calls transDec for each dec block. *)
-    and transDecs (venv, tenv, decs) = 
+    and transDecs (venv, tenv, decs, level) = 
 	let
-	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv'} = transDec(venv,tenv,a) 
-				      in transDecs(venv',tenv',l)
+	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv'} = transDec(venv,tenv,a, level) 
+				      in transDecs(venv',tenv',l, level)
 				      end
 	      | callTransDec [] = {venv=venv,tenv=tenv}
 	in
 	    callTransDec(decs)
 	end       
     (* Enters variables with no type dec into venv*)
-    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,...}) =
-	let val {exp,ty} = transExp(venv,tenv,init)
+    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,escape}, level) =
+	let val {exp,ty} = transExp(venv,tenv,init,level)
+	    val access = Translate.allocLocal(level)(!escape)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
-	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty})}
+	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty, access=access})}
 	end
       (* Enters variables with type dec into venv *)
-      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,...})=
+      | transDec(venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level)=
       	let val type1 =
 	getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
-	    val {exp,ty=type2} = transExp(venv,tenv,init) 
+	    val {exp,ty=type2} = transExp(venv,tenv,init,level) 
+	    val access = Translate.allocLocal(level)(!escape)
 	in
 		case type1 of Types.RECORD(fieldlist,u) => 
 		     if(type2=Types.NIL) then () else if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization"
 		     | _ => if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
-		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1})}
+		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access})}
 	end
       (* Enters type declarations into tenv *)
-      | transDec(venv,tenv,Absyn.TypeDec(tylist)) = 
+      | transDec(venv,tenv,Absyn.TypeDec(tylist), level) = 
 	let
             val nameList = let 
 		fun extractName (list,{name,ty,pos}::l) = extractName(name::list,l)
@@ -321,7 +324,7 @@ struct
 	end
 
       (* Enters functions into tenv *)
-      | transDec(venv,tenv,Absyn.FunctionDec(fundec)) = 
+      | transDec(venv,tenv,Absyn.FunctionDec(fundec), level) = 
 	   let val _ = foldr (fn ({name,pos,...},set) => 
 	    	if Symbol.look(set,name) <> NONE then (ErrorMsg.error pos
 	    	"Repeated function declaration in mutually recursive block."; set) 
@@ -333,7 +336,9 @@ struct
 	    	    {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
 
 	         val params' = map transparam params
-	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=getnamedty(result_ty)})
+		 val paramesc = foldl (fn({name, escape, typ, pos},ans)=>(!escape :: ans)) [] params
+		 val funlabel = Temp.newlabel()
+	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals =map #ty params', result=getnamedty(result_ty), level=Translate.newLevel{parent=level,name=funlabel,formals=true::paramesc}, label = funlabel})
 	     in
 		venv'
 	     end
@@ -341,7 +346,9 @@ struct
 	     	 let fun transparam {name,escape,typ,pos} = 
 		     {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
 	             val params' = map transparam params
-	             val venv' = Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=Types.UNIT})
+		     val paramesc = foldl (fn({name, escape, typ, pos},ans)=>(!escape :: ans)) [] params
+		     val funlabel = Temp.newlabel()
+	             val venv' =  Symbol.enter(venv,name,Env.FunEntry{formals = map #ty params', result=Types.UNIT, level=Translate.newLevel{parent=level,name=funlabel,formals=true::paramesc}, label=funlabel})
 	         in
 		    venv'
     	         end
@@ -351,11 +358,14 @@ struct
 		   let val result_ty =
 	    	      getTyOption(Symbol.look(tenv,rt),pos,("Declared function type "^Symbol.name rt^" does not exist"))
 		       fun transparam {name,escape,typ,pos} = 
-		        {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
+		        {name=name,
+		 ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist"))), escape=escape}
        	               val params' = map transparam params
-	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val SOME(Env.FunEntry{level=mylevel,...}) = (Symbol.look(venv', name))
+	    	       fun enterparam({name,ty,escape},venv2) =
+		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Translate.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
-		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body)
+		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body,mylevel)
 		    in
 			case getnamedty(result_ty) of Types.RECORD(fs,us)=> 
 		 	if (tytrans = Types.NIL) then () else if ((tytrans) = getnamedty(result_ty)) 
@@ -368,12 +378,14 @@ struct
 	       | doCheck({name,params,body,pos,result=NONE}) = 
 		   let val result_ty = Types.UNIT
 		       fun transparam {name,escape,typ,pos} = 
-		         {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist")))}
+		         {name=name, ty=getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Declared parameter type "^Symbol.name typ^" does not exist"))),escape=escape}
        	               val params' = map transparam params
-	    	       fun enterparam({name,ty},venv2) = Symbol.enter(venv2, name,Env.VarEntry{ty=ty})
+		       val SOME(Env.FunEntry{level=mylevel,...}) = Symbol.look(venv', name)
+	    	       fun enterparam({name,ty,escape},venv2) =
+		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Translate.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
 		    in
-		 	if (#ty (transExp(venv'',tenv, body)) = result_ty) 
+		 	if (#ty (transExp(venv'',tenv, body, level)) = result_ty) 
 			   then () 
 			   else ErrorMsg.error pos "Return type does not match declared function type"
 		    end 
@@ -387,5 +399,5 @@ struct
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
-    fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp))
+    fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost))
 end
