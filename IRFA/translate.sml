@@ -1,29 +1,17 @@
-signature TRANSLATE = 
-sig
-    type level
-    type access (* not the same as Frame.access *)
-
-    val outermost : level
-    val newLevel : {parent: level, name: Temp.label, formals: bool list} -> level
-    val formals : level -> access list
-    val allocLocal : level -> bool -> access
-end
-
 structure Translate : TRANSLATE = 
-struct
+struct 
+  structure Frame : FRAME = MipsFrame
+  structure A = Absyn
+			      
+  type level = {parent: level, frame: Frame.frame}
+  type access = level * Frame.access
 
-structure Frame : FRAME = MipsFrame
+  val outermost = newLevel (parent = nil, name = Temp.namedlabel("TopLevel"), formals = [])
 
+  fun newLevel {parent = lev, name = label, formals = formlist} = {parent = lev, frame = Frame.newFrame({name = label, formals = formlist})}
 
-type level = {parent: level, frame: Frame.frame}
-type access = level * Frame.access
+  fun formals l = Frame.forms(#frame l)
 
-val outermost = newLevel (parent = nil, name = Temp.namedlabel("TopLevel"), formals = [])
-
-fun newLevel {parent = lev, name = label, formals = formlist} = {parent = lev, frame = Frame.newFrame({name = label, formals = formlist})}
-
-fun formals l = Frame.forms(#frame l)
-
-fun allocLocal l = Frame.allocLocal(#frame l) 
-
+  fun allocLocal l = Frame.allocLocal(#frame l) 
+				     
 end
