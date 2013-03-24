@@ -19,7 +19,10 @@ temp.sig
 temp.sml
 frame.sig
 mipsframe.sml
+translate.sig
 translate.sml
+tree.sml
+
 
 
 $/smlnj-lib.cm
