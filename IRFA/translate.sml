@@ -53,4 +53,19 @@ struct
       end
     | unNx (Nx s) = s
 
+  fun simpleVar (access, level) = 
+      let val (definitionlevel, acc) = access
+	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
+	      let val {parent = _, frame = _, id = defId } = defLevel 
+		  val {parent = currParent, frame = currFrame, id = currId } = currentLevel
+	      in
+		  if (defId = currId) 
+		  then T.TEMP(F.FP)
+		  (* calculate offset for T.CONST(0) placeholder *)
+		  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(0)))
+	      end
+      in
+	Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
+      end
+
 end
