@@ -5,8 +5,12 @@ type frame = {name: Temp.label, formals: bool list, num: int ref}
 datatype access = InFrame of int 
 		| InReg of Temp.temp
 			       
-val wordsize = 4
+val wordSize = 4
+val FP = Temp.newtemp()
 	   
+fun exp (InFrame(k)) = (fn(exp) => Tree.MEM(Tree.BINOP(Tree.PLUS,exp,Tree.CONST(k))))
+  | exp (InReg(register)) = (fn(exp) => Tree.TEMP(register))
+
 fun newFrame f = let val {name=label, formals=formals} = f
 		 in
 		     {name=label, formals=formals, num = ref 0}
@@ -20,7 +24,7 @@ fun name f = let val {name = label, formals = _, num = _} = f
 fun forms f = let val {name = _, formals = _, num = num} = f
 		  val locals = !num
 		  fun createAccessList (0,l) = l
-		    | createAccessList (n,l) = createAccessList(n+wordsize,InFrame(n)::l)
+		    | createAccessList (n,l) = createAccessList(n+wordSize,InFrame(n)::l)
 	      in
 		  createAccessList(locals, [])
 	      end
@@ -28,7 +32,7 @@ fun forms f = let val {name = _, formals = _, num = num} = f
 fun allocLocal f = let val {name = _, formals = _, num = num} = f
 		   in
 		       (fn boolean => case boolean of
-					  true => (num := !num - wordsize; InFrame(!num))
+					  true => (num := !num - wordSize; InFrame(!num))
 					| false => InReg(Temp.newtemp()))
 		   end			    						    
 end
