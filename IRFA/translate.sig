@@ -2,6 +2,7 @@ signature TRANSLATE =
 sig
     type level
     type access (* not the same as Frame.access *)
+    type exp
 
     val outermost : level
     val newLevel : {parent: level, name: Temp.label, formals: bool list} -> level
