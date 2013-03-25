@@ -119,11 +119,11 @@ struct
 		    val arglist = map (fn a => trexp a) args;
 		    val funcval = Symbol.look(venv,func)
 		in
-	            case funcval of SOME(Env.FunEntry{formals,result,...}) =>
+	            case funcval of SOME(Env.FunEntry{formals,result,level=funlevel,label}) =>
 		    (if List.length(arglist)<>List.length(formals) 
 	      	    then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
-		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(), ty=result})
-		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=(), ty=Types.INT})
+		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(Tr.funcall(args,label,level,mylevel)), ty=result})
+		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=(Tr.funcall(args,label,level,mylevel)), ty=Types.INT})
 		end
 
 	      (* Checks if variable type and expression type are valid for assignment *)

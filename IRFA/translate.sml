@@ -102,4 +102,24 @@ struct
       in
 	Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
+      
+      fun funcall(args,label,level,mylevel) = 
+      	  let val {parent=topParent, frame=_, id=_} = mylevel
+	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
+	      let val {parent = _, frame = _, id = defId } = defLevel 
+		  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
+		  val InnerLevel(l) = currParent
+     		  val f = #frame l
+		  val pos = !(#num f)
+	      in
+		  if (defId = currId) 
+		  then T.TEMP(F.FP)
+		  (* calculate offset for T.CONST(0) placeholder *)
+		  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
+	      end
+
+      	  in
+		T.CALL(T.NAME label, staticLink(topParent,level)::map(fn(e)=>unEx(e),args))
+	  end
+
 end
