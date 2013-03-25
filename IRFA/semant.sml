@@ -188,11 +188,12 @@ struct
 		
 	      (* Checks if array type matches initial value *)
 	      | trexp(Absyn.ArrayExp{typ, size, init, pos}) = 
-		let val {exp=_, ty=arrtype} = trexp init
+		let val {exp=initexp, ty=arrtype} = trexp init
 		val rettype = getnamedty(getTyOption(Symbol.look(tenv,typ),pos,("Type of Array "^Symbol.name typ^" does not exist")))
 		val Types.ARRAY(acttype,u) = rettype
+		val {exp=sizeexp, ty=sizetype} = trexp size
 		in
-		    checkInt(trexp size, pos);
+		    checkInt({exp=sizeexp, ty=sizetype}, pos);
 		    case getnamedty(acttype) of Types.RECORD(fs,us) =>
 		    	 if (arrtype=Types.NIL) then () else 
 			    if (getnamedty(acttype) = arrtype) then ()
@@ -200,7 +201,7 @@ struct
 		    | _ =>  if (getnamedty(acttype) = arrtype) then ()
 	     	    	    else ErrorMsg.error pos "Array type does not match initial value";
 		
-		    {exp=(Tr.NIL),ty=rettype}
+		    {exp=(Tr.allocateArr(sizeexp,initexp)),ty=rettype}
 		end
 
 	      (* Recursively checks each exp. Empty exps are of type UNIT *)

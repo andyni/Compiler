@@ -15,7 +15,7 @@ sig
     val makeLetCall : Tree.stm list * exp -> exp
     val allocateRec : int -> exp
     val recExp : exp list * exp -> exp
-    val allocateArr : int * exp -> exp
+    val allocateArr : exp * exp -> exp
     val seqExp : Tree.stm list * exp -> exp
     val makeVar : access * exp -> Tree.stm
     val assigncall : exp * exp -> exp

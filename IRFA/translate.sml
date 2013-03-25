@@ -115,7 +115,7 @@ struct
 				       	 Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(recpointer))::movevars(exparr,0)),T.TEMP r))
 				 end
 
-     fun allocateArr(size,exp) = Ex(F.externalCall("initArray",[T.CONST(size*F.wordSize), unEx(exp)]))
+     fun allocateArr(size,exp) = Ex(F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),T.CONST F.wordSize), unEx(exp)]))
  
      fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
 			      
