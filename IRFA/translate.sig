@@ -20,13 +20,16 @@ sig
     val assigncall : exp * exp -> exp
     val funcall : exp list * Temp.label * level * level -> exp
     val simpleVar : access * level -> exp
-    val fieldVar : exp * Tree.exp -> exp
+    val fieldVar : exp * int -> exp
     val subVar : exp * exp -> exp
     val iftstm : exp * exp -> exp
     val ifstm : exp * exp * exp -> exp
     val getStm : exp -> Tree.stm
     val intexp : int -> exp
     val strexp : string -> exp
+    val whileexp : exp * exp * Temp.label -> exp
+    val forexp : exp * exp * exp * exp * Temp.label -> exp
+    val breakexp : Temp.label -> exp
     val getCurrOffset : level -> int
 end
     
