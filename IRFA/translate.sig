@@ -17,6 +17,7 @@ sig
     val intexp : int -> exp
     val stringexp : string -> exp
     val assignexp : exp * exp -> exp
+    val breakexp : Temp.label -> exp
     val ifthenexp : exp * exp -> exp
     val ifthenelseexp: exp * exp * exp -> exp
     val binop : Tree.binop * exp * exp -> exp

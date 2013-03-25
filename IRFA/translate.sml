@@ -119,6 +119,8 @@ struct
 	  Ex(T.CALL(T.NAME label, staticLink(topParent,level)::(map unEx args)))
       end
 
+  fun breakexp breaklabel = Nx(T.JUMP(T.NAME(breaklabel),[breaklabel]))
+
   fun whileexp (condition, body, break) = 
       let val testlabel = Temp.newlabel()
 	  val bodylabel = Temp.newlabel()
@@ -132,6 +134,24 @@ struct
 		   T.LABEL(donelabel),
 		   T.LABEL(break)
 	  ])
+      end
+
+  fun forexp (var, lo, hi, body, break) = 
+      let val testlabel = Temp.newlabel()
+	  val bodylabel = Temp.newlabel()
+	  val var' = unEx var
+	  val lo' = unEx lo
+	  val hi' = unEx hi
+      in
+	  Nx(T.SEQ[T.MOVE(var', lo'),
+		   T.CJUMP(T.LE, lo', hi', bodylabel, break),
+		   T.LABEL(bodylabel),
+		   unNx(body),
+		   T.LABEL(testlabel),
+		   T.MOVE(var', T.BINOP(T.PLUS, var', T.CONST(1))),
+		   T.CJUMP(T.LE, var', hi', bodylabel, break), 
+		   T.LABEL(break)
+	    ])
       end
 
 end
