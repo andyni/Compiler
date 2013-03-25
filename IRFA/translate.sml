@@ -3,17 +3,19 @@ struct
   structure F : FRAME = MipsFrame
   structure A = Absyn
   structure T = Tree
-
+		    
   datatype exp = Ex of T.exp
   	       | Nx of T.stm
 	       | Cx of Temp.label * Temp.label -> T.stm
-
+						      
   datatype level = Outermost
   	   	 | InnerLevel of {parent: level, frame: F.frame, id : unit ref}
 				     
   type access = level * F.access
 			    
   val outermost = Outermost
+
+  val NIL = Ex(T.CONST 0)
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
 
@@ -52,47 +54,35 @@ struct
     | unNx (Cx c) = (T.EXP(T.CONST 0))
     | unNx (Ex e) = (T.EXP(e))
 
-  fun NIL () = Ex(T.CONST(0))
+  fun binop(oper,exp1,exp2) = Ex(T.BINOP(oper,unEx(exp1),unEx(exp2)))
 
-  fun intexp num = Ex(T.CONST(num))
+  fun relop(oper,exp1,exp2) = Cx(fn(t,f)=>T.CJUMP(oper,unEx(exp1),unEx(exp2),t,f))
 
-  fun assignexp (var, exp) = Nx(T.MOVE(unEx var, unEx exp))
-
-  fun stringexp str = let val lab = Temp.newlabel()
-		      in
-			  Ex(Tree.NAME(lab))
-		      end
-
-  fun binop (oper,exp1,exp2) = Ex(T.BINOP(oper,unEx(exp1),unEx(exp2)))
-
-  fun relop (oper,exp1,exp2) = Cx(fn(t,f)=>T.CJUMP(oper,unEx(exp1),unEx(exp2),t,f))
-
-  fun ifthenelseexp (test,exp1,exp2) = let val r = Temp.newtemp()
-					   val t = Temp.newlabel() and f=Temp.newlabel() and join=Temp.newlabel()
-				       in
-					   Ex(T.ESEQ(T.SEQ[
-							  unCx(test)(t,f),
-							  T.LABEL t,
-							  T.MOVE(T.TEMP r, unEx(exp1)),
-							  T.JUMP(T.NAME join,[join]),
-							  T.LABEL f,
-							  T.MOVE(T.TEMP r, unEx(exp2)),
-							  T.JUMP(T.NAME join,[join]),
-							  T.LABEL join], T.TEMP r))
-				       end
-	
-  fun ifthenexp (test,exp1) = let val t = Temp.newlabel() and f = Temp.newlabel()
+  fun ifstm(test,exp1,exp2) = let val r = Temp.newtemp()
+				  val t = Temp.newlabel() and f=Temp.newlabel() and join=Temp.newlabel()
 			      in
-				  Nx(T.SEQ[unCx(test)(t,f),
-					   T.LABEL t,
-					   T.EXP (unEx exp1),
-					   T.JUMP (T.NAME f, [f]),
-					   T.LABEL f])
+				  Ex(T.ESEQ(T.SEQ[
+						 unCx(test)(t,f),
+						 T.LABEL t,
+						 T.MOVE(T.TEMP r, unEx(exp1)),
+						 T.JUMP(T.NAME join,[join]),
+						 T.LABEL f,
+						 T.MOVE(T.TEMP r, unEx(exp2)),
+						 T.JUMP(T.NAME join,[join]),
+						 T.LABEL join], T.TEMP r))
 			      end
+	
+  fun iftstm(test,exp1) = let val t = Temp.newlabel() and f = Temp.newlabel()
+      			  in
+			      Nx(T.SEQ[unCx(test)(t,f),
+				       T.LABEL t,
+				       T.EXP (unEx(exp1)),
+				       T.JUMP (T.NAME f, [f]),
+				       T.LABEL f])
+			  end
 
-  fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), T.CONST(F.wordSize*offset))))
-
-  fun subscriptVar (exp1, exp2) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp1), T.BINOP(T.MUL, unEx(exp2), T.CONST(F.wordSize)))))
+  fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), (offset))))
+  fun subVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), unEx(offset))))    
       
   fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
       let val {parent = _, frame = _, id = defId } = defLevel 
@@ -108,19 +98,48 @@ struct
 
   fun simpleVar (access, level) = 
       let val (definitionlevel, acc) = access
-      in
-	Ex(F.exp(acc)(staticLink(definitionlevel, level))) 
+      in	
+	  Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
+      
+  fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
+				   
+  fun allocateRec(initval, level) = 
+      let val (lev, access) =  allocLocal(level)(true)
+      in
+	  T.MOVE(F.exp(access)(T.TEMP F.FP),unEx(initval))
+      end
+  fun recExp(exparr,currnum) =
+      Ex(T.ESEQ(T.SEQ(exparr),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.CONST
+      	  							    currnum))))
 
-  fun funcall (args,label,level,mylevel) = 
-      let val {parent=topParent, frame=_, id=_} = mylevel
-						    				
+  fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
+			      
+  fun makeVar(access, initval) = 
+      let val (lev,acc) = access
+      in
+	  T.MOVE(F.exp(acc)(T.TEMP F.FP), unEx(initval))
+      end
+      	  		  
+  fun getStm(exp) = unNx(exp)
+  fun getEx(exp) = unEx(exp)
+
+  fun intexp(a) = Ex(T.CONST(a))
+  fun strexp(s) = let val lab = Temp.newlabel()
+      		  in
+		      Ex(T.NAME(lab))
+		  end
+		      
+  fun assigncall(exp1, exp2) = Nx(T.MOVE(unEx(exp1), unEx(exp2)))       
+				 
+  fun funcall(args,label,level,mylevel) = 
+      let val InnerLevel({parent=topParent, frame=_, id=_}) = mylevel
       in
 	  Ex(T.CALL(T.NAME label, staticLink(topParent,level)::(map unEx args)))
       end
-
+	  
   fun breakexp breaklabel = Nx(T.JUMP(T.NAME(breaklabel),[breaklabel]))
-
+			      
   fun whileexp (condition, body, break) = 
       let val testlabel = Temp.newlabel()
 	  val bodylabel = Temp.newlabel()
@@ -154,4 +173,5 @@ struct
 	    ])
       end
 
+  fun getCurrOffset(InnerLevel{parent,frame,id}) = !(#num(frame))
 end
