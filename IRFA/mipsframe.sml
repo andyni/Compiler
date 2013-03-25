@@ -8,8 +8,8 @@ datatype access = InFrame of int
 val wordSize = 4
 val FP = Temp.newtemp()
 	   
-fun exp (InFrame(k)) = (fn(exp) => Tree.MEM(Tree.BINOP(Tree.PLUS,exp,Tree.CONST(k))))
-  | exp (InReg(register)) = (fn(exp) => Tree.TEMP(register))
+fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
+  | exp (InReg(register)) = (fn(expr) => Tree.TEMP(register))
 
 fun newFrame f = let val {name=label, formals=formals} = f
 		 in
@@ -34,5 +34,8 @@ fun allocLocal f = let val {name = _, formals = _, num = num} = f
 		       (fn boolean => case boolean of
 					  true => (num := !num - wordSize; InFrame(!num))
 					| false => InReg(Temp.newtemp()))
-		   end			    						    
+		   end			    		
+
+fun externalCall(s,args) = Tree.CALL(Tree.NAME(Temp.namedlabel s), args) 				    
+
 end

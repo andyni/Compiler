@@ -102,32 +102,22 @@ struct
 	  Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
-<<<<<<< HEAD
       fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
 
-      fun allocateRec(size) = 
-			      in
-				F.externalCall("malloc",T.CONST size*F.wordsize)
-			      end
+      fun allocateRec(size) = Ex(F.externalCall("malloc",[T.CONST (size*F.wordSize)]))
+			      
       fun recExp(exparr, recpointer) =
       	  		 	 let val r = Temp.newtemp()
+				     fun movevars(a::l,currnum) =
+			      	     	 T.MOVE(T.MEM(T.BINOP(T.PLUS,T.TEMP r, T.CONST(currnum*F.wordSize))), unEx(a))::movevars(l,currnum+1)
+			               | movevars([],currnum) = []
 				 in
-				       	 Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, recpointer)::movevars(loc),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.TEMP r))))
+				       	 Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(recpointer))::movevars(exparr,0)),T.TEMP r))
+				 end
 
-      fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
-=======
-  fun makeLetCall (exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
-				   
-  fun allocateRec (initval, level) = 
-      let val (lev, access) =  allocLocal(level)(true)
-      in
-	  T.MOVE(F.exp(access)(T.TEMP F.FP),unEx(initval))
-      end
-  fun recExp (exparr,currnum) =
-      Ex(T.ESEQ(T.SEQ(exparr),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.CONST currnum))))
->>>>>>> 8c4c85d98e778d0e1caf7c29f139f20a0b924bcb
-
-  fun seqExp (exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
+     fun allocateArr(size,exp) = Ex(F.externalCall("initArray",[T.CONST(size*F.wordSize), unEx(exp)]))
+ 
+     fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
 			      
   fun makeVar (access, initval) = 
       let val (lev,acc) = access
@@ -168,9 +158,7 @@ struct
 		   T.LABEL(break)
 	  ])
       end
-<<<<<<< HEAD
-      
-=======
+
 
   fun forexp (var, lo, hi, body, break) = 
       let val bodylabel = Temp.newlabel()
@@ -190,7 +178,4 @@ struct
 		   T.LABEL(break)
 	    ])
       end
-
-  fun getCurrOffset (InnerLevel{parent,frame,id}) = !(#num(frame))
->>>>>>> 8c4c85d98e778d0e1caf7c29f139f20a0b924bcb
 end

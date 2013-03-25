@@ -13,8 +13,9 @@ sig
     val binop : Tree.binop * exp * exp -> exp
     val relop : Tree.relop * exp * exp -> exp 
     val makeLetCall : Tree.stm list * exp -> exp
-    val allocateRec : exp * level -> Tree.stm
-    val recExp : Tree.stm list * int -> exp
+    val allocateRec : int -> exp
+    val recExp : exp list * exp -> exp
+    val allocateArr : int * exp -> exp
     val seqExp : Tree.stm list * exp -> exp
     val makeVar : access * exp -> Tree.stm
     val assigncall : exp * exp -> exp
@@ -30,6 +31,5 @@ sig
     val whileexp : exp * exp * Temp.label -> exp
     val forexp : exp * exp * exp * exp * Temp.label -> exp
     val breakexp : Temp.label -> exp
-    val getCurrOffset : level -> int
 end
     

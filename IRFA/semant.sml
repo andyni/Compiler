@@ -236,8 +236,6 @@ struct
 		    val Types.RECORD(fieldlist,u) =
 			getnamedty(getRecTyOption(Symbol.look(tenv,typ),
 	      pos, ("Type of record "^Symbol.name typ^" does not exist")))
-
-		    val offsetNum = Tr.getCurrOffset(level)
 		    val recPointer = Tr.allocateRec(length(fieldlist))
 		    fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		      | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
@@ -250,11 +248,11 @@ struct
 								   then () else ErrorMsg.error pos "Type mismatch in record"
 					  | _ => if (fieldty=expty)
 						 then () else ErrorMsg.error pos "Type mismatch in record";
-	      		     Tr.allocateRec(expexp, level)::set	      		    
+	      		     expexp::set	      		    
 		        end
-		     val exparr = (foldl checktypes [] fields);
+		     val exparr = (foldr checktypes [] fields);
 		in
-		    {exp=(Tr.recExp(exparr,offsetNum)), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
+		    {exp=(Tr.recExp(exparr,recPointer)), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
 		end 
 		    
 	    (* Looks in venv for variable type mapping. *)
