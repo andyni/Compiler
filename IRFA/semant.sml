@@ -54,10 +54,10 @@ struct
                     (checkInt({exp=exp1,ty=type1},pos);
 	             checkInt({exp=exp2,ty=type2},pos);
 		     case oper of 
-		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT})
-		       	  Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
-			  Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
-			  Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
+		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT}
+			| Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), ty=Types.INT}
+			| Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), ty=Types.INT}
+			| Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), ty=Types.INT})
 		(* Comparison Operations *)
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
@@ -66,16 +66,16 @@ struct
 		       | Types.STRING => (checkString({exp=exp1,ty=type1}, pos); checkString({exp=exp2,ty=type2}, pos))
 		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
 		     case oper of 
-		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT}) 
-			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT}) 
-			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT}) 
+		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT} 
+			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT} 
+			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT} 
 			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
 		(* EQ and NEQ Comparisons *)
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
 		    let val myexp = case oper of 
-		    	    	 Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
-				 Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
+		    	    		Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
+				      | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
 		    in
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
 			(case (type1,type2) of
@@ -93,13 +93,10 @@ struct
 	      | trexp(Absyn.VarExp v) = trvar v
 
 	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
-    	      | trexp(Absyn.IntExp a) = {exp=(Tr.Ex(T.CONST(a))), ty=Types.INT}
-	      | trexp(Absyn.NilExp) = {exp=(Tr.Nx(T.SEQ([]))), ty=Types.NIL}
-  	      | trexp(Absyn.StringExp s) =
-	      			      let val lab = Tr.newlabel()
-				      in
-					{exp=(Tr.NAME(lab)), ty=Types.STRING}
-				      end
+    	      | trexp(Absyn.IntExp a) = {exp=Tr.intexp(a), ty=Types.INT}
+	      | trexp(Absyn.NilExp) = {exp=(Tr.NIL()), ty=Types.NIL}
+  	      | trexp(Absyn.StringExp s) = {exp= Tr.stringexp(s), ty=Types.STRING}
+
 	      (* Checks if breaks are properly placed in for/while loops *)
 	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
 					     else (ErrorMsg.error pos "Break not properly nested.");
@@ -136,7 +133,7 @@ struct
 		    	    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)))
 		    | _ => if type1 = type2 then ()
 		    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)));
-		    {exp=(),ty=Types.UNIT}
+		    {exp=Tr.assignexp(var, exp),ty=Types.UNIT}
 		end
 
 	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
@@ -147,8 +144,8 @@ struct
 		in
 		    checkInt({exp=testexp, ty=tytest}, pos);
 		    case else' of  
-			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elsexp)), ty=tythen})
-                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=iftstm(testexp,thenexp), ty=Types.UNIT})
+			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifthenelseexp(testexp,thenexp,elseexp)), ty=tythen})
+                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=Tr.ifthenexp(testexp,thenexp), ty=Types.UNIT})
 		end
 
 	      (* The While loop body should be TYPE.Unit *)
@@ -236,15 +233,16 @@ struct
 	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty,access}) => {exp=(Tr.simpleVar(access,level))), ty=getnamedty ty}
+	          of SOME(Env.VarEntry{ty,access}) => {exp=(Tr.simpleVar(access,level)), ty=getnamedty ty}
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(Tr.NIL), ty=Types.BOTTOM}))
 
 	      (* Record field variables *)
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
 		let val {exp=exp1, ty=vartype} = trvar v
 		    fun checkList([],numba) = (ErrorMsg.error pos "Id not in Record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
-		      | checkList((sym,ty)::l,numba) = if (id=sym) then
-	     	      				      {exp=Tr,fieldVar(exp,T.CONST numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
+		      | checkList((sym,ty)::l,numba) = if (id=sym) 
+						       then {exp=Tr.fieldVar(exp1,numba), ty=getnamedty(ty)} 
+						       else checkList(l, numba+1)	
 		in
 		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist,0)
 				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
@@ -256,7 +254,7 @@ struct
 		    val {exp=exp2, ty=type2} = trexp exp
 		in
 		    checkInt({exp=exp2,ty=type2}, pos);
-		    case vartype of Types.ARRAY(acttype,u) => {exp=(Tr.fieldVar(exp1,exp2)),ty=getnamedty(acttype)}
+		    case vartype of Types.ARRAY(acttype,u) => {exp=(Tr.subscriptVar(exp1,exp2)),ty=getnamedty(acttype)}
 		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		end
 	in
@@ -418,5 +416,5 @@ struct
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
-    fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost))
+    fun transProg exp = (transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost); ())
 end

@@ -10,6 +10,16 @@ sig
 
     val allocLocal : level -> bool -> access					
 
+    val NIL : unit -> exp
     val simpleVar : access * level -> exp
+    val fieldVar : exp * int -> exp
+    val subscriptVar : exp * exp -> exp
+    val intexp : int -> exp
+    val stringexp : string -> exp
+    val assignexp : exp * exp -> exp
+    val ifthenexp : exp * exp -> exp
+    val ifthenelseexp: exp * exp * exp -> exp
+    val binop : Tree.binop * exp * exp -> exp
+    val relop : Tree.relop * exp * exp -> exp
 end
     
