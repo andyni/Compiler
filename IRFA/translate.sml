@@ -8,16 +8,15 @@ struct
   	       | Nx of T.stm
 	       | Cx of Temp.label * Temp.label -> T.stm
 
-
-
   datatype level = Outermost
   	   	 | InnerLevel of {parent: level, frame: F.frame, id : unit ref}
-
+				     
   type access = level * F.access
-
+			    
   val outermost = Outermost
 
   val NIL = Ex(T.CONST 0)
+
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
 
@@ -30,29 +29,28 @@ struct
 		  end
 
   fun allocLocal (InnerLevel{parent=p, frame=f, id=id}) = (fn(boolean) =>(InnerLevel{parent=p, frame=f, id=id},F.allocLocal(f)(boolean)))	
-  
 
   fun unEx (Ex e) = (e)
     | unEx (Cx genstm) = 
-      	   let val r = Temp.newtemp()
-	       val t = Temp.newlabel() and f=Temp.newlabel()
-	   in
-		(T.ESEQ(T.SEQ[T.MOVE(T.TEMP r, T.CONST 1),
-			  genstm(t,f),
-			  T.LABEL f,
-			  T.MOVE(T.TEMP r, T.CONST 0),
-			  T.LABEL t], T.TEMP r))
-	   end
+      let val r = Temp.newtemp()
+	  val t = Temp.newlabel() and f=Temp.newlabel()
+      in
+	  (T.ESEQ(T.SEQ[T.MOVE(T.TEMP r, T.CONST 1),
+			genstm(t,f),
+			T.LABEL f,
+			T.MOVE(T.TEMP r, T.CONST 0),
+			T.LABEL t], T.TEMP r))
+      end
     | unEx (Nx s) = (T.ESEQ(s,T.CONST 0))
-
+			
   fun unCx (Cx c) = (c)
     | unCx (Ex e) = let val z = Temp.newlabel()
       	       	    in
        		        (fn(t,f) => T.SEQ[T.CJUMP(T.NE,e,T.CONST 0, t,z),
-      	       	  	         T.LABEL z, T.JUMP(T.NAME f, [f])])
+      	       	  			  T.LABEL z, T.JUMP(T.NAME f, [f])])
 		    end
     | unCx (Nx n) = ((fn(t,f) => T.JUMP(T.NAME f, [f])))
-
+			
   fun unNx (Nx n) = (n)
     | unNx (Cx c) = (T.EXP(T.CONST 0))
     | unNx (Ex e) = (T.EXP(e))
@@ -86,22 +84,22 @@ struct
 
   fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), (offset))))
   fun subVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), unEx(offset))))    
+      
+  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
+      let val {parent = _, frame = _, id = defId } = defLevel 
+	  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
+	  val InnerLevel(l) = currParent
+     	  val f = #frame l
+	  val pos = !(#num f)
+      in
+	  if (defId = currId) 
+	  then T.TEMP(F.FP)
+	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
+      end
+
   fun simpleVar (access, level) = 
       let val (definitionlevel, acc) = access
-	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
-	      let val {parent = _, frame = _, id = defId } = defLevel 
-		  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
-		  val InnerLevel(l) = currParent
-     		  val f = #frame l
-		  val pos = !(#num f)
-	      in
-		  if (defId = currId) 
-		  then T.TEMP(F.FP)
-		  (* calculate offset for T.CONST(0) placeholder *)
-		  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
-	      end
-      in
-	
+      in	
 	Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
@@ -137,22 +135,24 @@ struct
 
       fun funcall(args,label,level,mylevel) = 
       	  let val InnerLevel({parent=topParent, frame=_, id=_}) = mylevel
-	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
-	      let val {parent = _, frame = _, id = defId } = defLevel 
-		  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
-		  val InnerLevel(l) = currParent
-     		  val f = #frame l
-		  val pos = !(#num f)
-	      in
-		  if (defId = currId) 
-		  then T.TEMP(F.FP)
-		  (* calculate offset for T.CONST(0) placeholder *)
-		  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
-	      end
-
       	  in
-		Ex(T.CALL(T.NAME label, staticLink(topParent,level)::map(fn(e)=>unEx(e))(args)))
+		Ex(T.CALL(T.NAME label, staticLink(topParent,level)::(map unEx args)))
 	  end
 
-	  fun getCurrOffset(InnerLevel{parent,frame,id}) = !(#num(frame))
+  fun whileexp (condition, body, break) = 
+      let val testlabel = Temp.newlabel()
+	  val bodylabel = Temp.newlabel()
+	  val donelabel = Temp.newlabel()
+      in
+	  Nx(T.SEQ[T.LABEL(testlabel),
+		   unCx(condition)(testlabel, donelabel),
+		   T.LABEL(bodylabel),
+		   unNx(body),
+		   T.JUMP(T.NAME(testlabel), [testlabel]),
+		   T.LABEL(donelabel),
+		   T.LABEL(break)
+	  ])
+      end
+
+      fun getCurrOffset(InnerLevel{parent,frame,id}) = !(#num(frame))
 end

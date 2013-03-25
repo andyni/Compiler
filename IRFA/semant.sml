@@ -58,6 +58,7 @@ struct
 		       	  | Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), ty=Types.INT}
 			  | Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), ty=Types.INT}
 			  | Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), ty=Types.INT})
+
 		(* Comparison Operations *)
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
@@ -69,13 +70,15 @@ struct
 		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT} 
 			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT} 
 			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT} 
-			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT})
+			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
+
 		(* EQ and NEQ Comparisons *)
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
 		    let val myexp = case oper of 
 		    	    	 Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
 			       | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
+
 		    in
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
 			(case (type1,type2) of
@@ -94,6 +97,7 @@ struct
 
 	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
     	      | trexp(Absyn.IntExp a) = {exp=Tr.intexp(a), ty=Types.INT}
+
 	      | trexp(Absyn.NilExp) = {exp=(Tr.NIL), ty=Types.NIL}
   	      | trexp(Absyn.StringExp(s,pos)) =  {exp=(Tr.strexp(s)), ty=Types.STRING}
 
@@ -135,6 +139,7 @@ struct
 		    | _ => if type1 = type2 then ()
 		    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)));
 		    {exp=(Tr.assigncall(exp2,exp1)),ty=Types.UNIT}
+
 		end
 
 	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
@@ -147,6 +152,7 @@ struct
 		    case else' of  
 			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elseexp)), ty=tythen})
                       | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=Tr.iftstm(testexp,thenexp), ty=Types.UNIT})
+
 		end
 
 	      (* The While loop body should be TYPE.Unit *)
@@ -431,5 +437,8 @@ struct
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
-    fun transProg exp = #exp (transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost))
+    fun transProg exp = let val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost))
+	in
+		exp1
+	end
 end
