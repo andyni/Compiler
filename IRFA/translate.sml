@@ -105,14 +105,14 @@ struct
       
       fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
 
-      fun allocateRec(initval, level) = 
-      	  		      let val (lev, access) =  allocLocal(level)(true)
+      fun allocateRec(size) = 
 			      in
-				T.MOVE(F.exp(access)(T.TEMP F.FP),unEx(initval))
+				F.externalCall("malloc",T.CONST size*F.wordsize)
 			      end
-      fun recExp(exparr,currnum) =
-      	  		      Ex(T.ESEQ(T.SEQ(exparr),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.CONST
-      	  		      currnum))))
+      fun recExp(exparr, recpointer) =
+      	  		 	 let val r = Temp.newtemp()
+				 in
+				       	 Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, recpointer)::movevars(loc),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.TEMP r))))
 
       fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
 
@@ -153,6 +153,5 @@ struct
 		   T.LABEL(break)
 	  ])
       end
-
-      fun getCurrOffset(InnerLevel{parent,frame,id}) = !(#num(frame))
+      
 end

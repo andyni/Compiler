@@ -231,6 +231,7 @@ struct
 	      pos, ("Type of record "^Symbol.name typ^" does not exist")))
 
 		    val offsetNum = Tr.getCurrOffset(level)
+		    val recPointer = Tr.allocateRec(length(fieldlist))
 		    fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		      | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
 		    fun checktypes((symbol, exp, post),set) =
@@ -242,12 +243,10 @@ struct
 								   then () else ErrorMsg.error pos "Type mismatch in record"
 					  | _ => if (fieldty=expty)
 						 then () else ErrorMsg.error pos "Type mismatch in record";
-	      		     Tr.allocateRec(expexp, level)::set
-	      		    
+	      		     Tr.allocateRec(expexp, level)::set	      		    
 		        end
 		     val exparr = (foldl checktypes [] fields);
 		in
-
 		    {exp=(Tr.recExp(exparr,offsetNum)), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
 		end 
 		    
