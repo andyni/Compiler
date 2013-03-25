@@ -1,5 +1,8 @@
 structure Semant :> SEMANT =
 struct
+    structure T = Tree
+    structure Tr = Translate
+
     (* int reference used to determine nest level of breaks. >0 is valid.*)
     val breakLevel = ref 0
 
@@ -42,48 +45,61 @@ struct
 		   
     fun transExp (venv, tenv, topexp, level) =
 	let fun trexp(Absyn.OpExp{left, oper, right, pos}) =
+	    	let val {exp=exp1, ty=type1} = trexp left
+		    val {exp=exp2, ty=type2} = trexp right
+		in
 		(* Arithmetic Operations *)
 		if (oper=Absyn.PlusOp orelse oper=Absyn.MinusOp orelse oper=Absyn.TimesOp orelse oper=Absyn.DivideOp) 
 		then
-                    (checkInt(trexp left,pos);
-	             checkInt(trexp right,pos);
-                     {exp=(), ty=Types.INT})
+                    (checkInt({exp=exp1,ty=type1},pos);
+	             checkInt({exp=exp2,ty=type2},pos);
+		     case oper of 
+		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT})
+		       	  Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
+			  Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
+			  Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
 		(* Comparison Operations *)
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
-		    (case #ty (trexp left) of
-			 Types.INT => (checkInt(trexp left, pos); checkInt(trexp right, pos))
-		       | Types.STRING => (checkString(trexp left, pos); checkString(trexp right, pos))
+		    (case type1 of
+			 Types.INT => (checkInt({exp=exp1,ty=type1}, pos); checkInt({exp=exp2, ty=type2}, pos))
+		       | Types.STRING => (checkString({exp=exp1,ty=type1}, pos); checkString({exp=exp2,ty=type2}, pos))
 		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
-		     {exp=(), ty=Types.INT}) 
-
+		     case oper of 
+		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT}) 
+			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT}) 
+			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT}) 
+			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
 		(* EQ and NEQ Comparisons *)
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
-		    let 
-			val {exp=exp1, ty=ty1} = trexp left
-			val {exp=exp2, ty=ty2} = trexp right
+		    let val myexp = case oper of 
+		    	    	 Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
+				 Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
 		    in
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
-			(case (ty1,ty2) of
-			     (Types.INT, Types.INT) => {exp=(),ty=Types.INT}
-			   | (Types.STRING, Types.STRING) => {exp=(),ty=Types.INT}
-			   | (Types.RECORD(_), Types.RECORD(_)) => {exp=(),ty=Types.INT}
-		           | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(),ty=Types.INT}
-			   | (Types.RECORD(_), Types.NIL) => {exp=(),ty=Types.INT}
-			   | (Types.NIL, Types.RECORD(_)) => {exp=(),ty=Types.INT}
-		           | _ => (ErrorMsg.error pos "Type mismatch in EQ/NEQ comparison."; {exp=(),ty=Types.BOTTOM}))
+			(case (type1,type2) of
+			     (Types.INT, Types.INT) => {exp=(myexp),ty=Types.INT}
+			   | (Types.STRING, Types.STRING) => {exp=(myexp),ty=Types.INT}
+			   | (Types.RECORD(_), Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
+		           | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(myexp),ty=Types.INT}
+			   | (Types.RECORD(_), Types.NIL) => {exp=(myexp),ty=Types.INT}
+			   | (Types.NIL, Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
+		           | _ => (ErrorMsg.error pos "Type mismatch in EQ/NEQ comparison."; {exp=(myexp),ty=Types.BOTTOM}))
 		    end
 		else (ErrorMsg.error pos "Operation not supported"; {exp=(),ty=Types.BOTTOM})
-
+		end
               (* trvar handles variable cases *)
 	      | trexp(Absyn.VarExp v) = trvar v
 
 	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
-    	      | trexp(Absyn.IntExp a) = {exp=(), ty=Types.INT}
-	      | trexp(Absyn.NilExp) = {exp=(), ty=Types.NIL}
-  	      | trexp(Absyn.StringExp s) = {exp=(), ty=Types.STRING}
-
+    	      | trexp(Absyn.IntExp a) = {exp=(Tr.Ex(T.CONST(a))), ty=Types.INT}
+	      | trexp(Absyn.NilExp) = {exp=(Tr.Nx(T.SEQ([]))), ty=Types.NIL}
+  	      | trexp(Absyn.StringExp s) =
+	      			      let val lab = Tr.newlabel()
+				      in
+					{exp=(Tr.NAME(lab)), ty=Types.STRING}
+				      end
 	      (* Checks if breaks are properly placed in for/while loops *)
 	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
 					     else (ErrorMsg.error pos "Break not properly nested.");
@@ -125,13 +141,14 @@ struct
 
 	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
 	      | trexp(Absyn.IfExp{test, then', else', pos}) = 
-		let val {exp=_, ty=tythen} = trexp then'
-	            val {exp=_, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
+		let val {exp=thenexp, ty=tythen} = trexp then'
+	            val {exp=elseexp, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
+	      	    val {exp=testexp, ty= tytest} = trexp test
 		in
-		    checkInt(trexp test, pos);
+		    checkInt({exp=testexp, ty=tytest}, pos);
 		    case else' of  
-			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(), ty=tythen})
-                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=(), ty=Types.UNIT})
+			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elsexp)), ty=tythen})
+                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=iftstm(testexp,thenexp), ty=Types.UNIT})
 		end
 
 	      (* The While loop body should be TYPE.Unit *)
@@ -219,26 +236,28 @@ struct
 	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty,access}) => {exp=(), ty=getnamedty ty}
-		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(), ty=Types.BOTTOM}))
+	          of SOME(Env.VarEntry{ty,access}) => {exp=(Tr.simpleVar(access,level))), ty=getnamedty ty}
+		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(Tr.NIL), ty=Types.BOTTOM}))
 
 	      (* Record field variables *)
 	      | trvar(Absyn.FieldVar(v,id,pos)) = 
-		let val {exp=_, ty=vartype} = trvar v
-		    fun checkList([]) = (ErrorMsg.error pos "Id not in Record"; {exp=(), ty=Types.BOTTOM})
-		      | checkList((sym,ty)::l) = if (id=sym) then {exp=(), ty=getnamedty(ty)} else checkList(l)	
+		let val {exp=exp1, ty=vartype} = trvar v
+		    fun checkList([],numba) = (ErrorMsg.error pos "Id not in Record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
+		      | checkList((sym,ty)::l,numba) = if (id=sym) then
+	     	      				      {exp=Tr,fieldVar(exp,T.CONST numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
 		in
-		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist)
-				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(), ty=Types.BOTTOM})
+		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist,0)
+				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		end
 
 	      (* Array subscript variables *)
               | trvar(Absyn.SubscriptVar(v,exp,pos)) =
-		let val {exp=_, ty=vartype} = trvar v
+		let val {exp=exp1, ty=vartype} = trvar v
+		    val {exp=exp2, ty=type2} = trexp exp
 		in
-		    checkInt(trexp exp, pos);
-		    case vartype of Types.ARRAY(acttype,u) => {exp=(),ty=getnamedty(acttype)}
-		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(), ty=Types.BOTTOM})
+		    checkInt({exp=exp2,ty=type2}, pos);
+		    case vartype of Types.ARRAY(acttype,u) => {exp=(Tr.fieldVar(exp1,exp2)),ty=getnamedty(acttype)}
+		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		end
 	in
 	    trexp(topexp)
