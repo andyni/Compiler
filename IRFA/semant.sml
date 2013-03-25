@@ -43,7 +43,7 @@ struct
       | transTy (tenv, Absyn.ArrayTy(name,pos)) =
     	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
 		   
-    fun transExp (venv, tenv, topexp, level) =
+    fun transExp (venv, tenv, topexp, level, break) =
 	let fun trexp(Absyn.OpExp{left, oper, right, pos}) =
 	    	let val {exp=exp1, ty=type1} = trexp left
 		    val {exp=exp2, ty=type2} = trexp right
@@ -55,10 +55,10 @@ struct
 	             checkInt({exp=exp2,ty=type2},pos);
 		     case oper of 
 		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT}
-		       	  | Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), ty=Types.INT}
-			  | Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), ty=Types.INT}
-			  | Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), ty=Types.INT})
-
+		       	| Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), ty=Types.INT}
+			| Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), ty=Types.INT}
+			| Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), ty=Types.INT})
+			
 		(* Comparison Operations *)
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
@@ -67,17 +67,17 @@ struct
 		       | Types.STRING => (checkString({exp=exp1,ty=type1}, pos); checkString({exp=exp2,ty=type2}, pos))
 		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
 		     case oper of 
-		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT} 
-			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT} 
-			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT} 
-			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
-
+		     	 Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT} 
+		      |  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT} 
+		      |  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT} 
+		      |  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
+			
 		(* EQ and NEQ Comparisons *)
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
 		    let val myexp = case oper of 
-		    	    	 Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
-			       | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
+		    	    		Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
+				      | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
 
 		    in
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
@@ -97,14 +97,13 @@ struct
 
 	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
     	      | trexp(Absyn.IntExp a) = {exp=Tr.intexp(a), ty=Types.INT}
-
 	      | trexp(Absyn.NilExp) = {exp=(Tr.NIL), ty=Types.NIL}
   	      | trexp(Absyn.StringExp(s,pos)) =  {exp=(Tr.strexp(s)), ty=Types.STRING}
 
 	      (* Checks if breaks are properly placed in for/while loops *)
 	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
 					     else (ErrorMsg.error pos "Break not properly nested.");
-	                                     {exp=(Tr.NIL), ty=Types.BOTTOM})
+	                                     {exp=(Tr.breakexp break), ty=Types.BOTTOM})
 
 	      (* Checks types of all function parameters before function call *)
 	      | trexp(Absyn.CallExp{func,args,pos}) =
@@ -122,10 +121,12 @@ struct
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result,level=funlevel,label}) =>
-		    (if List.length(arglist)<>List.length(formals) 
-	      	    then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
-		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(Tr.funcall(explist,label,level,funlevel)), ty=result})
-		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=Tr.NIL, ty=Types.INT})
+				    (if List.length(arglist)<>List.length(formals) 
+	      			     then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
+				     else (); 
+				     map checkTyExp (ListPair.zip(arglist,formals)); 
+				     {exp=(Tr.funcall(explist,label,level,funlevel)), ty=result})
+				  | _ => (ErrorMsg.error pos "Function undefined"; {exp=Tr.NIL, ty=Types.INT})
 		end
 
 	      (* Checks if variable type and expression type are valid for assignment *)
@@ -158,26 +159,31 @@ struct
 	      (* The While loop body should be TYPE.Unit *)
 	      | trexp(Absyn.WhileExp{test, body, pos}) = 
 	        (breakLevel:=(!breakLevel)+1;
-		let val {exp=_, ty=ty1} = trexp body
+		let val testexp = (trexp test) 
+		    val breaklabel = Temp.newlabel()
+		    val {exp=bodyexp, ty=ty1} = transExp(venv,tenv,body,level,breaklabel)
 		in
-			checkInt(trexp test, pos);
+			checkInt(testexp, pos);
 		 	if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required";
 			breakLevel:=(!breakLevel)-1;
-		    	{exp=(Tr.NIL), ty=Types.UNIT}
+		    	{exp=Tr.whileexp(#exp testexp, bodyexp, breaklabel), ty=Types.UNIT}
 		end)
 
 	      (* The For loop body should be TYPE.Unit *)
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
 	        (breakLevel:=(!breakLevel)+1;
-		let val venv' = Symbol.enter(venv, var,
-	      Env.VarEntry{ty=Types.INT, access=Translate.allocLocal(level)(!escape)})
-		    val {exp=_, ty=ty1} = transExp(venv',tenv,body,level) 
+		let val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT, access=Translate.allocLocal(level)(!escape)})
+		    val access = Tr.allocLocal(level)(!escape)
+		    val lo' = trexp lo
+		    val hi' = trexp hi
+		    val breaklabel = Temp.newlabel()
+		    val {exp=body', ty=ty1} = transExp(venv',tenv,body,level,breaklabel) 
 		in 
-		    checkInt(trexp lo, pos);
-		    checkInt(trexp hi, pos);
+		    checkInt(lo', pos);
+		    checkInt(hi', pos);
 		    if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
 		    breakLevel:=(!breakLevel)-1;
-      		    {exp=(Tr.NIL), ty=Types.UNIT}
+      		    {exp=Tr.forexp(Tr.simpleVar(access,level), #exp lo', #exp hi', body', breaklabel), ty=Types.UNIT}
 		end)
 		
 	      (* Checks if array type matches initial value *)
@@ -200,23 +206,24 @@ struct
 	      (* Recursively checks each exp. Empty exps are of type UNIT *)
               | trexp(Absyn.SeqExp []) = {exp=(Tr.seqExp([], Tr.NIL)), ty=Types.UNIT}
 	      | trexp(Absyn.SeqExp l) =
-		let fun tycheckseq ([(exp2,pos)], {exp,ty}) = let val {exp=exp1, ty=type1} = trexp exp2
-			   	     in
-					{exp=Tr.seqExp(exp,exp1), ty=type1}
-				     end
-		      | tycheckseq ((exp2,pos)::l,{exp,ty}) = 
-		      		   let val {exp=exp1, ty=type1} = trexp exp2
-				   in
-				       tycheckseq(l,{exp=Tr.getStm exp1::exp,ty=type1})
-				   end
+		let fun tycheckseq ([(exp2,pos)], {exp,ty}) = 
+			let val {exp=exp1, ty=type1} = trexp exp2
+			in
+			    {exp=Tr.seqExp(exp,exp1), ty=type1}
+			end
+		      | tycheckseq ((exp2,pos)::l, {exp,ty}) = 
+		      	let val {exp=exp1, ty=type1} = trexp exp2
+			in
+			    tycheckseq(l,{exp=Tr.getStm exp1::exp,ty=type1})
+			end
 		in
 		    tycheckseq(l,{exp=[], ty=Types.NIL})
 		end
 
 	      (* Let Expression (calls transdec) *)
 	      | trexp (Absyn.LetExp{decs,body,pos}) =
-		let val {venv=venv',tenv=tenv', exp=exp1}=transDecs(venv,tenv,decs,level)
-		    val {exp=exp2, ty=type2} = transExp(venv', tenv', body, level)
+		let val {venv=venv',tenv=tenv', exp=exp1}=transDecs(venv,tenv,decs,level, break)
+		    val {exp=exp2, ty=type2} = transExp(venv', tenv', body, level, break)
 		in 
 		    {exp=Tr.makeLetCall(exp1,exp2), ty=type2}
 		end
@@ -261,7 +268,7 @@ struct
 		let val {exp=exp1, ty=vartype} = trvar v
 		    fun checkList([],numba) = (ErrorMsg.error pos "Id not in Record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		      | checkList((sym,ty)::l,numba) = if (id=sym) then
-	     	      				      {exp=Tr.fieldVar(exp1,T.CONST numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
+	     	      				      {exp=Tr.fieldVar(exp1, numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
 		in
 		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist,0)
 				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
@@ -281,29 +288,30 @@ struct
 	end
 
     (* Calls transDec for each dec block. *)
-    and transDecs (venv, tenv, decs, level) = 
+    and transDecs (venv, tenv, decs, level, break) = 
 	let
-	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv', exp=exp} = transDec(venv,tenv,a, level) 
-    	       			     	  val {tenv=tenv2, venv=venv2, exp=exp2} = transDecs(venv',tenv',l,level)
+	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv', exp=exp} = transDec(venv,tenv,a, level, break) 
+    	       			     	  val {tenv=tenv2, venv=venv2, exp=exp2} = transDecs(venv',tenv',l,level, break)
 				      in {tenv=tenv2, venv=venv2, exp=exp::exp2}
 				      end
 	      | callTransDec [] = {venv=venv,tenv=tenv, exp=[]}
 	in
 	    callTransDec(decs)
-	end       
+	end     
+  
     (* Enters variables with no type dec into venv*)
-    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,escape}, level) =
-	let val {exp,ty} = transExp(venv,tenv,init,level)
+    and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,escape}, level, break) =
+	let val {exp,ty} = transExp(venv,tenv,init,level,break)
 	    val access = Translate.allocLocal(level)(!escape)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
 	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty,access=access}), exp=Tr.makeVar(access,exp)}
 	end
       (* Enters variables with type dec into venv *)
-      | transDec(venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level)=
+      | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level, break)=
       	let val type1 =
 	getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
-	    val {exp,ty=type2} = transExp(venv,tenv,init,level) 
+	    val {exp,ty=type2} = transExp(venv,tenv,init,level,break) 
 	    val access = Translate.allocLocal(level)(!escape)
 	in
 		case type1 of Types.RECORD(fieldlist,u) => 
@@ -312,7 +320,7 @@ struct
 		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access}), exp=Tr.makeVar(access,exp)}
 	end
       (* Enters type declarations into tenv *)
-      | transDec(venv,tenv,Absyn.TypeDec(tylist), level) = 
+      | transDec(venv,tenv,Absyn.TypeDec(tylist), level, break) = 
 	let
             val nameList = let 
 		fun extractName (list,{name,ty,pos}::l) = extractName(name::list,l)
@@ -361,7 +369,7 @@ struct
 	end
 
       (* Enters functions into tenv *)
-      | transDec(venv,tenv,Absyn.FunctionDec(fundec), level) = 
+      | transDec(venv,tenv,Absyn.FunctionDec(fundec), level, break) = 
 	   let val _ = foldr (fn ({name,pos,...},set) => 
 	    	if Symbol.look(set,name) <> NONE then (ErrorMsg.error pos
 	    	"Repeated function declaration in mutually recursive block."; set) 
@@ -402,7 +410,7 @@ struct
 	    	       fun enterparam({name,ty,escape},venv2) =
 		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Translate.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
-		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body,mylevel)
+		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		    in
 			case getnamedty(result_ty) of Types.RECORD(fs,us)=> 
 		 	if (tytrans = Types.NIL) then () else if ((tytrans) = getnamedty(result_ty)) 
@@ -422,7 +430,7 @@ struct
 		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Translate.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
 		    in
-		 	if (#ty (transExp(venv'',tenv, body, level)) = result_ty) 
+		 	if (#ty (transExp(venv'',tenv, body, level,break)) = result_ty) 
 			   then () 
 			   else ErrorMsg.error pos "Return type does not match declared function type"
 		    end 
@@ -436,7 +444,9 @@ struct
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
-    fun transProg exp = let val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost))
+    fun transProg exp = 
+	let val breakLabel = Temp.newlabel()
+	    val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost, breakLabel))
 	in
 		exp1
 	end
