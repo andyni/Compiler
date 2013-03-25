@@ -17,7 +17,7 @@ struct
 
   val outermost = Outermost
 
-  val NIL = T.CONST 0
+  val NIL = Ex(T.CONST 0)
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
 
@@ -64,27 +64,28 @@ struct
   fun ifstm(test,exp1,exp2) = let val r = Temp.newtemp()
 	       val t = Temp.newlabel() and f=Temp.newlabel() and join=Temp.newlabel()
 	       in
-			(T.ESEQ(T.SEQ[
+			Ex(T.ESEQ(T.SEQ[
 			  unCx(test)(t,f),
 			  T.LABEL t,
 			  T.MOVE(T.TEMP r, unEx(exp1)),
-			  T.JUMP(T.NAME join,[join])
-			  T.LABEL f
-			  T.MOVE(T.TEMP r, unEx(exp2))
-			  T.JUMP(T.NAME join,[join])
+			  T.JUMP(T.NAME join,[join]),
+			  T.LABEL f,
+			  T.MOVE(T.TEMP r, unEx(exp2)),
+			  T.JUMP(T.NAME join,[join]),
 			  T.LABEL join], T.TEMP r))
 	        end
 	
-  fun iftstm(test,exp1) = val t = Temp.newLabel() and f = Temp.newlabel()
+  fun iftstm(test,exp1) = let val t = Temp.newlabel() and f = Temp.newlabel()
       			in
-				T.SEQ[unCx(test)(t,f),
+				Nx(T.SEQ[unCx(test)(t,f),
 					T.LABEL t,
-					T.EXP (exp1)
-					T.JUMP (T.NAME f, [f])
-					T.LABEL f]
+					T.EXP (unEx(exp1)),
+					T.JUMP (T.NAME f, [f]),
+					T.LABEL f])
+			end
 
-  fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(unEx(exp), offset)))
-      
+  fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), (offset))))
+  fun subVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), unEx(offset))))    
   fun simpleVar (access, level) = 
       let val (definitionlevel, acc) = access
 	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
@@ -100,11 +101,42 @@ struct
 		  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
 	      end
       in
+	
 	Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
+      fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
+
+      fun allocateRec(initval, level) = 
+      	  		      let val (lev, access) =  allocLocal(level)(true)
+			      in
+				T.MOVE(F.exp(access)(T.TEMP F.FP),unEx(initval))
+			      end
+      fun recExp(exparr,currnum) =
+      	  		      Ex(T.ESEQ(T.SEQ(exparr),T.MEM(T.BINOP(T.PLUS,T.TEMP(F.FP),T.CONST
+      	  		      currnum))))
+
+      fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
+
+      fun makeVar(access, initval) = 
+      	  		  let val (lev,acc) = access
+			  in
+				T.MOVE(F.exp(acc)(T.TEMP F.FP), unEx(initval))
+			  end
+      	  		  
+      fun getStm(exp) = unNx(exp)
+      fun getEx(exp) = unEx(exp)
+
+      fun intexp(a) = Ex(T.CONST(a))
+      fun strexp(s) = let val lab = Temp.newlabel()
+      	  in
+		Ex(T.NAME(lab))
+	  end
+
+      fun assigncall(exp1, exp2) = Nx(T.MOVE(unEx(exp1), unEx(exp2)))       
+
       fun funcall(args,label,level,mylevel) = 
-      	  let val {parent=topParent, frame=_, id=_} = mylevel
+      	  let val InnerLevel({parent=topParent, frame=_, id=_}) = mylevel
 	  fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
 	      let val {parent = _, frame = _, id = defId } = defLevel 
 		  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
@@ -119,7 +151,8 @@ struct
 	      end
 
       	  in
-		T.CALL(T.NAME label, staticLink(topParent,level)::map(fn(e)=>unEx(e),args))
+		Ex(T.CALL(T.NAME label, staticLink(topParent,level)::map(fn(e)=>unEx(e))(args)))
 	  end
 
+	  fun getCurrOffset(InnerLevel{parent,frame,id}) = !(#num(frame))
 end

@@ -54,10 +54,10 @@ struct
                     (checkInt({exp=exp1,ty=type1},pos);
 	             checkInt({exp=exp2,ty=type2},pos);
 		     case oper of 
-		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT})
-		       	  Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
-			  Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
-			  Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), Tr.unEx(exp2)))), ty=Types.INT})
+		     	  Absyn.PlusOp => {exp=Tr.binop(T.PLUS,exp1,exp2), ty=Types.INT}
+		       	  | Absyn.MinusOp => {exp=Tr.binop(T.MINUS,exp1,exp2), ty=Types.INT}
+			  | Absyn.TimesOp => {exp=Tr.binop(T.MUL,exp1,exp2), ty=Types.INT}
+			  | Absyn.DivideOp => {exp=Tr.binop(T.DIV,exp1,exp2), ty=Types.INT})
 		(* Comparison Operations *)
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
@@ -66,16 +66,16 @@ struct
 		       | Types.STRING => (checkString({exp=exp1,ty=type1}, pos); checkString({exp=exp2,ty=type2}, pos))
 		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
 		     case oper of 
-		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT}) 
-			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT}) 
-			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT}) 
-			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT}) 
+		     	   Absyn.GtOp => {exp=Tr.relop(T.GT,exp1,exp2), ty=Types.INT} 
+			|  Absyn.LtOp => {exp=Tr.relop(T.LT,exp1,exp2), ty=Types.INT} 
+			|  Absyn.GeOp => {exp=Tr.relop(T.GE,exp1,exp2), ty=Types.INT} 
+			|  Absyn.LeOp => {exp=Tr.relop(T.LE,exp1,exp2), ty=Types.INT})
 		(* EQ and NEQ Comparisons *)
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
 		    let val myexp = case oper of 
 		    	    	 Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
-				 Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
+			       | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
 		    in
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
 			(case (type1,type2) of
@@ -87,23 +87,20 @@ struct
 			   | (Types.NIL, Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
 		           | _ => (ErrorMsg.error pos "Type mismatch in EQ/NEQ comparison."; {exp=(myexp),ty=Types.BOTTOM}))
 		    end
-		else (ErrorMsg.error pos "Operation not supported"; {exp=(),ty=Types.BOTTOM})
+		else (ErrorMsg.error pos "Operation not supported"; {exp=(Tr.NIL),ty=Types.BOTTOM})
 		end
               (* trvar handles variable cases *)
 	      | trexp(Absyn.VarExp v) = trvar v
 
 	      (* IntExp, NilExp, StringExp have types Types.INT/NIL/STRING*)
-    	      | trexp(Absyn.IntExp a) = {exp=(Tr.Ex(T.CONST(a))), ty=Types.INT}
-	      | trexp(Absyn.NilExp) = {exp=(Tr.Nx(T.SEQ([]))), ty=Types.NIL}
-  	      | trexp(Absyn.StringExp s) =
-	      			      let val lab = Tr.newlabel()
-				      in
-					{exp=(Tr.NAME(lab)), ty=Types.STRING}
-				      end
+    	      | trexp(Absyn.IntExp a) = {exp=Tr.intexp(a), ty=Types.INT}
+	      | trexp(Absyn.NilExp) = {exp=(Tr.NIL), ty=Types.NIL}
+  	      | trexp(Absyn.StringExp(s,pos)) =  {exp=(Tr.strexp(s)), ty=Types.STRING}
+
 	      (* Checks if breaks are properly placed in for/while loops *)
 	      | trexp(Absyn.BreakExp pos) = (if !breakLevel>0 then () 
 					     else (ErrorMsg.error pos "Break not properly nested.");
-	                                     {exp=(), ty=Types.BOTTOM})
+	                                     {exp=(Tr.NIL), ty=Types.BOTTOM})
 
 	      (* Checks types of all function parameters before function call *)
 	      | trexp(Absyn.CallExp{func,args,pos}) =
@@ -117,26 +114,27 @@ struct
 				  | _ =>  if ty=ty2 then ()
 					  else ErrorMsg.error pos "Type mismatch in function call"
 		    val arglist = map (fn a => trexp a) args;
+		    val explist = map (fn {exp=exp1, ty=ty1} => exp1) arglist
 		    val funcval = Symbol.look(venv,func)
 		in
 	            case funcval of SOME(Env.FunEntry{formals,result,level=funlevel,label}) =>
 		    (if List.length(arglist)<>List.length(formals) 
 	      	    then ErrorMsg.error pos "Mismatch in number of parameters sent to function vs function definition." 
-		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(Tr.funcall(args,label,level,mylevel)), ty=result})
-		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=(Tr.funcall(args,label,level,mylevel)), ty=Types.INT})
+		    else ();map checkTyExp (ListPair.zip(arglist,formals)); {exp=(Tr.funcall(explist,label,level,funlevel)), ty=result})
+		    | _ => (ErrorMsg.error pos "Function undefined"; {exp=Tr.NIL, ty=Types.INT})
 		end
 
 	      (* Checks if variable type and expression type are valid for assignment *)
 	      | trexp(Absyn.AssignExp{var, exp, pos}) =
-		let val {exp=_,ty=type1} = trexp exp
-	    	    val {exp=_,ty=type2} = trvar var
+		let val {exp=exp1,ty=type1} = trexp exp
+	    	    val {exp=exp2,ty=type2} = trvar var
 		in
 		    case type2 of Types.RECORD(fields,u) =>
 		    	 if (type1=Types.NIL) then () else if type1 = type2 then ()
 		    	    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)))
 		    | _ => if type1 = type2 then ()
 		    else ErrorMsg.error pos ("Type mismatch in assignment Type1: "^(Types.printTy(type1)) ^ " Type2: "^(Types.printTy(type2)));
-		    {exp=(),ty=Types.UNIT}
+		    {exp=(Tr.assigncall(exp2,exp1)),ty=Types.UNIT}
 		end
 
 	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
@@ -147,8 +145,8 @@ struct
 		in
 		    checkInt({exp=testexp, ty=tytest}, pos);
 		    case else' of  
-			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elsexp)), ty=tythen})
-                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=iftstm(testexp,thenexp), ty=Types.UNIT})
+			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elseexp)), ty=tythen})
+                      | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=Tr.iftstm(testexp,thenexp), ty=Types.UNIT})
 		end
 
 	      (* The While loop body should be TYPE.Unit *)
@@ -159,7 +157,7 @@ struct
 			checkInt(trexp test, pos);
 		 	if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required";
 			breakLevel:=(!breakLevel)-1;
-		    	{exp=(), ty=Types.UNIT}
+		    	{exp=(Tr.NIL), ty=Types.UNIT}
 		end)
 
 	      (* The For loop body should be TYPE.Unit *)
@@ -173,7 +171,7 @@ struct
 		    checkInt(trexp hi, pos);
 		    if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
 		    breakLevel:=(!breakLevel)-1;
-      		    {exp=(), ty=Types.UNIT}
+      		    {exp=(Tr.NIL), ty=Types.UNIT}
 		end)
 		
 	      (* Checks if array type matches initial value *)
@@ -190,23 +188,31 @@ struct
 		    | _ =>  if (getnamedty(acttype) = arrtype) then ()
 	     	    	    else ErrorMsg.error pos "Array type does not match initial value";
 		
-		    {exp=(),ty=rettype}
+		    {exp=(Tr.NIL),ty=rettype}
 		end
 
 	      (* Recursively checks each exp. Empty exps are of type UNIT *)
-              | trexp(Absyn.SeqExp []) = {exp=(), ty=Types.UNIT}
+              | trexp(Absyn.SeqExp []) = {exp=(Tr.seqExp([], Tr.NIL)), ty=Types.UNIT}
 	      | trexp(Absyn.SeqExp l) =
-		let fun tycheckseq ([], r) = r
-		      | tycheckseq ((exp,pos)::l,r) = tycheckseq(l,trexp exp)
+		let fun tycheckseq ([(exp2,pos)], {exp,ty}) = let val {exp=exp1, ty=type1} = trexp exp2
+			   	     in
+					{exp=Tr.seqExp(exp,exp1), ty=type1}
+				     end
+		      | tycheckseq ((exp2,pos)::l,{exp,ty}) = 
+		      		   let val {exp=exp1, ty=type1} = trexp exp2
+				   in
+				       tycheckseq(l,{exp=Tr.getStm exp1::exp,ty=type1})
+				   end
 		in
-		    tycheckseq(l,{exp=(), ty=Types.NIL})
+		    tycheckseq(l,{exp=[], ty=Types.NIL})
 		end
 
 	      (* Let Expression (calls transdec) *)
 	      | trexp (Absyn.LetExp{decs,body,pos}) =
-		let val {venv=venv',tenv=tenv'} = transDecs(venv,tenv,decs,level)
+		let val {venv=venv',tenv=tenv', exp=exp1}=transDecs(venv,tenv,decs,level)
+		    val {exp=exp2, ty=type2} = transExp(venv', tenv', body, level)
 		in 
-		    transExp(venv',tenv', body, level)
+		    {exp=Tr.makeLetCall(exp1,exp2), ty=type2}
 		end
 
 	      (* Checks each record field type individually *)
@@ -215,28 +221,34 @@ struct
 		    fun getRecTyOption (SOME(k), pos, errorstmt) = k
       		    | getRecTyOption (NONE, pos, errorstmt) = (ErrorMsg.error pos errorstmt; Types.RECORD([], ref ()))
 		    val Types.RECORD(fieldlist,u) =
-			getnamedty(getRecTyOption(Symbol.look(tenv,typ), pos, ("Type of record "^Symbol.name typ^" does not exist")))
+			getnamedty(getRecTyOption(Symbol.look(tenv,typ),
+	      pos, ("Type of record "^Symbol.name typ^" does not exist")))
+
+		    val offsetNum = Tr.getCurrOffset(level)
 		    fun getType(f,(name,ty)::l) = if (f=name) then getnamedty(ty) else getType(f,l)
 		      | getType(f,[]) = (ErrorMsg.error pos "No such field in record"; Types.BOTTOM)
-		    fun checktypes(symbol, exp, post) =
+		    fun checktypes((symbol, exp, post),set) =
 			let val fieldty = getType(symbol,fieldlist)
-		    	    val {exp=_,ty=expty} = trexp exp
+		    	    val {exp=expexp,ty=expty} = trexp exp
 			in
 			    case fieldty of Types.RECORD(fs,us) => if expty = Types.NIL then () else 
 								   if (fieldty=expty)
 								   then () else ErrorMsg.error pos "Type mismatch in record"
 					  | _ => if (fieldty=expty)
-						 then () else ErrorMsg.error pos "Type mismatch in record"
+						 then () else ErrorMsg.error pos "Type mismatch in record";
+	      		     Tr.allocateRec(expexp, level)::set
+	      		    
 		        end
+		     val exparr = (foldl checktypes [] fields);
 		in
-		    map checktypes fields;
-		    {exp=(), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
+
+		    {exp=(Tr.recExp(exparr,offsetNum)), ty=getnamedty(getOpt(Symbol.look(tenv, typ),Types.NIL))}
 		end 
 		    
 	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty,access}) => {exp=(Tr.simpleVar(access,level))), ty=getnamedty ty}
+	          of SOME(Env.VarEntry{ty,access}) => {exp=(Tr.simpleVar(access,level)), ty=getnamedty ty}
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(Tr.NIL), ty=Types.BOTTOM}))
 
 	      (* Record field variables *)
@@ -244,7 +256,7 @@ struct
 		let val {exp=exp1, ty=vartype} = trvar v
 		    fun checkList([],numba) = (ErrorMsg.error pos "Id not in Record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		      | checkList((sym,ty)::l,numba) = if (id=sym) then
-	     	      				      {exp=Tr,fieldVar(exp,T.CONST numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
+	     	      				      {exp=Tr.fieldVar(exp1,T.CONST numba), ty=getnamedty(ty)} else checkList(l, numba+1)	
 		in
 		    case vartype of Types.RECORD(fieldlist,u) =>  checkList(fieldlist,0)
 				  | _ => (ErrorMsg.error pos "Variable is not a record"; {exp=(Tr.NIL), ty=Types.BOTTOM})
@@ -256,7 +268,7 @@ struct
 		    val {exp=exp2, ty=type2} = trexp exp
 		in
 		    checkInt({exp=exp2,ty=type2}, pos);
-		    case vartype of Types.ARRAY(acttype,u) => {exp=(Tr.fieldVar(exp1,exp2)),ty=getnamedty(acttype)}
+		    case vartype of Types.ARRAY(acttype,u) => {exp=(Tr.subVar(exp1,exp2)),ty=getnamedty(acttype)}
 		    		  | _ => (ErrorMsg.error pos "Not an array"; {exp=(Tr.NIL), ty=Types.BOTTOM})
 		end
 	in
@@ -266,10 +278,11 @@ struct
     (* Calls transDec for each dec block. *)
     and transDecs (venv, tenv, decs, level) = 
 	let
-	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv'} = transDec(venv,tenv,a, level) 
-				      in transDecs(venv',tenv',l, level)
+	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv', exp=exp} = transDec(venv,tenv,a, level) 
+    	       			     	  val {tenv=tenv2, venv=venv2, exp=exp2} = transDecs(venv',tenv',l,level)
+				      in {tenv=tenv2, venv=venv2, exp=exp::exp2}
 				      end
-	      | callTransDec [] = {venv=venv,tenv=tenv}
+	      | callTransDec [] = {venv=venv,tenv=tenv, exp=[]}
 	in
 	    callTransDec(decs)
 	end       
@@ -279,7 +292,7 @@ struct
 	    val access = Translate.allocLocal(level)(!escape)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
-	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty, access=access})}
+	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty,access=access}), exp=Tr.makeVar(access,exp)}
 	end
       (* Enters variables with type dec into venv *)
       | transDec(venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level)=
@@ -291,7 +304,7 @@ struct
 		case type1 of Types.RECORD(fieldlist,u) => 
 		     if(type2=Types.NIL) then () else if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization"
 		     | _ => if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
-		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access})}
+		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access}), exp=Tr.makeVar(access,exp)}
 	end
       (* Enters type declarations into tenv *)
       | transDec(venv,tenv,Absyn.TypeDec(tylist), level) = 
@@ -339,7 +352,7 @@ struct
 		end
 	in
 	    (map update nameTypeTuples;
-	    {tenv=tenv', venv=venv})
+	    {tenv=tenv', venv=venv, exp=T.SEQ([])})
 	end
 
       (* Enters functions into tenv *)
@@ -414,7 +427,7 @@ struct
 		end
 	    in
 		checkFuns(venv');
-		{venv=venv', tenv=tenv}
+		{venv=venv', tenv=tenv, exp=T.SEQ([])}
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
