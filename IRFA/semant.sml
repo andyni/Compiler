@@ -364,7 +364,7 @@ struct
 		end
 	in
 	    (map update nameTypeTuples;
-	    {tenv=tenv', venv=venv, exp=T.SEQ([])})
+	    {tenv=tenv', venv=venv, exp=Tree.EXP(Tree.CONST 0)})
 	end
 
       (* Enters functions into tenv *)
@@ -439,7 +439,7 @@ struct
 		end
 	    in
 		checkFuns(venv');
-		{venv=venv', tenv=tenv, exp=T.SEQ([])}
+		{venv=venv', tenv=tenv, exp=Tree.EXP(Tree.CONST 0)}
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)

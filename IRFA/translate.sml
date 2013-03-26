@@ -19,6 +19,9 @@ struct
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
 
+  fun seq ([a]) = a 
+    | seq (a::l) = T.SEQ(a,seq l)
+
   fun formals l = let val InnerLevel{parent=_,frame=f, id = _} = l
 		      val forms = F.forms(f)
 		      fun createAccessTuple (a::list) = (l,a)::createAccessTuple(list)
@@ -34,7 +37,7 @@ struct
       let val r = Temp.newtemp()
 	  val t = Temp.newlabel() and f=Temp.newlabel()
       in
-	  (T.ESEQ(T.SEQ[T.MOVE(T.TEMP r, T.CONST 1),
+	  (T.ESEQ(seq [T.MOVE(T.TEMP r, T.CONST 1),
 			genstm(t,f),
 			T.LABEL f,
 			T.MOVE(T.TEMP r, T.CONST 0),
@@ -45,7 +48,7 @@ struct
   fun unCx (Cx c) = (c)
     | unCx (Ex e) = let val z = Temp.newlabel()
       	       	    in
-       		        (fn(t,f) => T.SEQ[T.CJUMP(T.NE,e,T.CONST 0, t,z),
+       		        (fn(t,f) => seq [T.CJUMP(T.NE,e,T.CONST 0, t,z),
       	       	  			  T.LABEL z, T.JUMP(T.NAME f, [f])])
 		    end
     | unCx (Nx n) = ((fn(t,f) => T.JUMP(T.NAME f, [f])))
@@ -61,7 +64,7 @@ struct
   fun ifstm (test,exp1,exp2) = let val r = Temp.newtemp()
 				   val t = Temp.newlabel() and f=Temp.newlabel() and join=Temp.newlabel()
 			       in
-				   Ex(T.ESEQ(T.SEQ[
+				   Ex(T.ESEQ(seq [
 						  unCx(test)(t,f),
 						  T.LABEL t,
 						  T.MOVE(T.TEMP r, unEx(exp1)),
@@ -74,7 +77,7 @@ struct
 	
   fun iftstm (test,exp1) = let val t = Temp.newlabel() and f = Temp.newlabel()
       			   in
-			       Nx(T.SEQ[unCx(test)(t,f),
+			       Nx(seq [unCx(test)(t,f),
 					T.LABEL t,
 					T.EXP (unEx(exp1)),
 					T.JUMP (T.NAME f, [f]),
@@ -102,7 +105,7 @@ struct
 	  Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
-      fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp2))) 
+      fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(seq exparr,unEx(exp2))) 
 
       fun allocateRec(size) = Ex(F.externalCall("malloc",[T.CONST (size*F.wordSize)]))
 			      
@@ -112,12 +115,12 @@ struct
 			      	     	 T.MOVE(T.MEM(T.BINOP(T.PLUS,T.TEMP r, T.CONST(currnum*F.wordSize))), unEx(a))::movevars(l,currnum+1)
 			               | movevars([],currnum) = []
 				 in
-				       	 Ex(T.ESEQ(T.SEQ(T.MOVE(T.TEMP r, unEx(recpointer))::movevars(exparr,0)),T.TEMP r))
+				       	 Ex(T.ESEQ(seq (T.MOVE(T.TEMP r, unEx(recpointer))::movevars(exparr,0)),T.TEMP r))
 				 end
 
      fun allocateArr(size,exp) = Ex(F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),T.CONST F.wordSize), unEx(exp)]))
  
-     fun seqExp(exparr, exp) = Ex(T.ESEQ(T.SEQ(exparr),unEx(exp)))
+     fun seqExp(exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
 			      
   fun makeVar (access, initval) = 
       let val (lev,acc) = access
@@ -149,7 +152,7 @@ struct
 	  val bodylabel = Temp.newlabel()
 	  val donelabel = Temp.newlabel()
       in
-	  Nx(T.SEQ[T.LABEL(testlabel),
+	  Nx(seq [T.LABEL(testlabel),
 		   unCx(condition)(testlabel, donelabel),
 		   T.LABEL(bodylabel),
 		   unNx(body),
@@ -167,7 +170,7 @@ struct
 	  val lo' = unEx lo
 	  val hi' = unEx hi
       in
-	  Nx(T.SEQ[T.MOVE(var', lo'),
+	  Nx(seq [T.MOVE(var', lo'),
 		   T.CJUMP(T.LE, var', hi', bodylabel, break),
 		   T.LABEL(bodylabel),
 		   unNx(body),
@@ -178,4 +181,6 @@ struct
 		   T.LABEL(break)
 	    ])
       end
+
+
 end
