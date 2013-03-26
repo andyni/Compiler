@@ -445,8 +445,9 @@ struct
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)
     fun transProg exp = 
 	let val breakLabel = Temp.newlabel()
-	    val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, Translate.outermost, breakLabel))
+	    val toplevel = Tr.newLevel({parent=Tr.outermost, name=Temp.newlabel(), formals=[true]})
+	    val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, toplevel, breakLabel))
 	in
-		exp1
+		Tr.getStm(exp1)
 	end
 end

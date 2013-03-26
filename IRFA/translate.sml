@@ -19,7 +19,8 @@ struct
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
 
-  fun seq ([a]) = a 
+  fun seq ([])  = T.EXP(T.CONST 0)
+    | seq ([a]) = a 
     | seq (a::l) = T.SEQ(a,seq l)
 
   fun formals l = let val InnerLevel{parent=_,frame=f, id = _} = l
@@ -30,7 +31,8 @@ struct
 		      createAccessTuple(forms)
 		  end
 
-  fun allocLocal (InnerLevel{parent=p, frame=f, id=id}) = (fn(boolean) =>(InnerLevel{parent=p, frame=f, id=id},F.allocLocal(f)(boolean)))	
+  fun allocLocal (InnerLevel{parent=p, frame=f, id=id}) = (fn(boolean)
+  =>(InnerLevel{parent=p, frame=f, id=id},F.allocLocal(f)(boolean)))
 
   fun unEx (Ex e) = (e)
     | unEx (Cx genstm) = 
@@ -90,9 +92,9 @@ struct
   fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
       let val {parent = _, frame = _, id = defId } = defLevel 
 	  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
-	  val InnerLevel(l) = currParent
-     	  val f = #frame l
-	  val pos = !(#num f)
+	  val pos = case currParent of InnerLevel(k)=> !(#num (#frame (k)))
+	      	       		  | Outermost =>  0
+
       in
 	  if (defId = currId) 
 	  then T.TEMP(F.FP)
@@ -181,6 +183,7 @@ struct
 		   T.LABEL(break)
 	    ])
       end
-
+      
+      fun getStm(e) = unNx(e)
 
 end
