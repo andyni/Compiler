@@ -4,10 +4,13 @@ struct
 type frame = {name: Temp.label, formals: bool list, num: int ref}
 datatype access = InFrame of int 
 		| InReg of Temp.temp
+datatype frag = PROC of {body: Tree.stm, frame: frame}
+	      | STRING of Temp.label * string
 			       
 val wordSize = 4
 val FP = Temp.newtemp()
-	   
+val RV = Temp.newtemp()	   
+
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
   | exp (InReg(register)) = (fn(expr) => Tree.TEMP(register))
 
@@ -36,6 +39,7 @@ fun allocLocal f = let val {name = _, formals = _, num = num} = f
 					| false => InReg(Temp.newtemp()))
 		   end			    		
 
-fun externalCall(s,args) = Tree.CALL(Tree.NAME(Temp.namedlabel s), args) 				    
+fun externalCall (s,args) = Tree.CALL(Tree.NAME(Temp.namedlabel s), args) 				    
+fun procEntryExit1 (frame, body) = body
 
 end

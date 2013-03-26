@@ -12,8 +12,11 @@ struct
   	   	 | InnerLevel of {parent: level, frame: F.frame, id : unit ref}
 				     
   type access = level * F.access
+  type frag = F.frag
 			    
   val outermost = Outermost
+
+  val fraglist = ref ([] : F.frag list)
 
   val NIL = Ex(T.CONST 0)
 
@@ -105,22 +108,26 @@ struct
 	  Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
-      fun makeLetCall(exparr,exp2) = Ex(T.ESEQ(seq exparr,unEx(exp2))) 
-
-      fun allocateRec(size) = Ex(F.externalCall("malloc",[T.CONST (size*F.wordSize)]))
-			      
-      fun recExp(exparr, recpointer) =
-      	  		 	 let val r = Temp.newtemp()
-				     fun movevars(a::l,currnum) =
-			      	     	 T.MOVE(T.MEM(T.BINOP(T.PLUS,T.TEMP r, T.CONST(currnum*F.wordSize))), unEx(a))::movevars(l,currnum+1)
-			               | movevars([],currnum) = []
-				 in
-				       	 Ex(T.ESEQ(seq (T.MOVE(T.TEMP r, unEx(recpointer))::movevars(exparr,0)),T.TEMP r))
-				 end
-
-     fun allocateArr(size,exp) = Ex(F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),T.CONST F.wordSize), unEx(exp)]))
+  fun makeLetCall (exparr,exp2) = Ex(T.ESEQ(seq exparr, unEx(exp2))) 
+	      
+  fun recExp (exparr) =
+      let val r = Temp.newtemp()
+	  val recpointer = F.externalCall("malloc", [T.CONST (length(exparr)*F.wordSize)])
+	  
+	  fun movevars (a::l,currnum) =
+	      T.MOVE(T.MEM(T.BINOP(T.PLUS,T.TEMP r, T.CONST(currnum*F.wordSize))), unEx(a))::movevars(l,currnum+1)
+	    | movevars ([],currnum) = []
+      in
+	  Ex(T.ESEQ(seq (T.MOVE(T.TEMP r, recpointer)::movevars(exparr,0)),T.TEMP r))
+      end
+	  
+  fun allocateArr (size,exp) = 
+      let val r = Temp.newtemp()
+      in
+	  Nx(T.MOVE(T.TEMP(r), F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),T.CONST F.wordSize), unEx(exp)])))
+      end
  
-     fun seqExp(exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
+  fun seqExp (exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
 			      
   fun makeVar (access, initval) = 
       let val (lev,acc) = access
@@ -134,6 +141,7 @@ struct
   fun intexp (a) = Ex(T.CONST(a))
   fun strexp (s) = let val lab = Temp.newlabel()
       		   in
+		       fraglist := F.STRING(lab,s)::(!fraglist);
 		       Ex(T.NAME(lab))
 		   end
 		      
@@ -182,5 +190,15 @@ struct
 	    ])
       end
 
+  fun procEntryExit {level=level, body=body} = 
+      let val InnerLevel({frame=frame,...}) = level
+	  val body' = F.procEntryExit1(frame, unNx(body))
+      in
+	  (fraglist := F.PROC({body=body',frame=frame})::(!fraglist))
+      end
 
+  fun getResult () = !fraglist
+
+  fun functiondec (level, body) = procEntryExit({level=level,body=body})
+					       
 end

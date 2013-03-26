@@ -3,6 +3,7 @@ sig
     type level
     type access (* not the same as Frame.access *)
     type exp
+    type frag
 
     val outermost : level
     val newLevel : {parent: level, name: Temp.label, formals: bool list} -> level
@@ -13,8 +14,7 @@ sig
     val binop : Tree.binop * exp * exp -> exp
     val relop : Tree.relop * exp * exp -> exp 
     val makeLetCall : Tree.stm list * exp -> exp
-    val allocateRec : int -> exp
-    val recExp : exp list * exp -> exp
+    val recExp : exp list -> exp
     val allocateArr : exp * exp -> exp
     val seqExp : Tree.stm list * exp -> exp
     val makeVar : access * exp -> Tree.stm
@@ -31,5 +31,9 @@ sig
     val whileexp : exp * exp * Temp.label -> exp
     val forexp : exp * exp * exp * exp * Temp.label -> exp
     val breakexp : Temp.label -> exp
+    val functiondec : level * exp -> unit
+
+    val procEntryExit : {level: level, body: exp} -> unit
+    val getResult : unit -> frag list
 end
     
