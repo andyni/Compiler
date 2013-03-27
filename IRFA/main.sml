@@ -4,7 +4,8 @@ struct
       let 
 	  val myParser = Parse.parse file
       in
+	  Temp.reset();
 	  PrintAbsyn.print(TextIO.stdOut, myParser);
-          Semant.transProg(Parse.parse file) 
+          Printtree.printtree(TextIO.stdOut,Semant.transProg(Parse.parse file)) 
       end
 end
