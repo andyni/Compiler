@@ -293,7 +293,8 @@ struct
 	let
 	    fun callTransDec (a::l) = let val {tenv=tenv', venv=venv', exp=exp} = transDec(venv,tenv,a, level, break) 
     	       			     	  val {tenv=tenv2, venv=venv2, exp=exp2} = transDecs(venv',tenv',l,level, break)
-				      in {tenv=tenv2, venv=venv2, exp=exp::exp2}
+				      in case exp of SOME(exp1) => {tenv=tenv2,venv=venv2, exp=exp1::exp2}
+					     | NONE => {tenv=tenv2,venv=venv2, exp=exp2}
 				      end
 	      | callTransDec [] = {venv=venv,tenv=tenv, exp=[]}
 	in
@@ -306,7 +307,7 @@ struct
 	    val access = Tr.allocLocal(level)(!escape)
 	in
 	    if (ty=Types.NIL) then ErrorMsg.error pos "Can't assign nil without declaring type" else ();
-	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty,access=access}), exp=Tr.makeVar(access,exp)}
+	    {tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=ty,access=access}), exp=SOME(Tr.makeVar(access,exp))}
 	end
       (* Enters variables with type dec into venv *)
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level, break)=
@@ -318,7 +319,7 @@ struct
 		case type1 of Types.RECORD(fieldlist,u) => 
 		     if(type2=Types.NIL) then () else if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization"
 		     | _ => if (type1=type2) then () else ErrorMsg.error pos "Variable type does not match initialization";
-		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access}), exp=Tr.makeVar(access,exp)}
+		{tenv=tenv,venv=Symbol.enter(venv,name,Env.VarEntry{ty=type1,access=access}), exp=SOME(Tr.makeVar(access,exp))}
 	end
       (* Enters type declarations into tenv *)
       | transDec(venv,tenv,Absyn.TypeDec(tylist), level, break) = 
@@ -366,7 +367,7 @@ struct
 		end
 	in
 	    (map update nameTypeTuples;
-	    {tenv=tenv', venv=venv, exp=Tree.EXP(Tree.CONST 0)})
+	    {tenv=tenv', venv=venv, exp=NONE})
 	end
 
       (* Enters functions into tenv *)
@@ -411,8 +412,10 @@ struct
 	    	       fun enterparam({name,ty,escape},venv2) =
 		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Tr.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
-		       val {exp=_, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
+		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
+		       
 		    in
+		        Tr.functiondec(mylevel,bodyexp);
 			case getnamedty(result_ty) of Types.RECORD(fs,us)=> 
 		 	if (tytrans = Types.NIL) then () else if ((tytrans) = getnamedty(result_ty)) 
 			   then () 
@@ -430,8 +433,10 @@ struct
 	    	       fun enterparam({name,ty,escape},venv2) =
 		 Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=Tr.allocLocal(mylevel)(!escape)})
 		       val venv'' = foldr enterparam venv params'
+		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		    in
-		 	if (#ty (transExp(venv'',tenv, body, mylevel,break)) = result_ty) 
+		        Tr.functiondec(mylevel,bodyexp);
+		 	if (tytrans = result_ty) 
 			   then () 
 			   else ErrorMsg.error pos "Return type does not match declared function type"
 		    end 
@@ -441,7 +446,7 @@ struct
 		end
 	    in
 		checkFuns(venv');
-		{venv=venv', tenv=tenv, exp=Tree.EXP(Tree.CONST 0)}
+		{venv=venv', tenv=tenv, exp=NONE}
 	    end
     
     (* Top level recursive function that takes in venv', tenv', and Absyn tree *)

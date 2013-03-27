@@ -112,7 +112,8 @@ struct
 	  Ex(F.exp(acc)(staticLink(definitionlevel, level) )) 
       end
       
-  fun makeLetCall (exparr,exp2) = Ex(T.ESEQ(seq exparr, unEx(exp2))) 
+  fun makeLetCall ([], exp2) = Ex(unEx(exp2))
+      | makeLetCall (exparr,exp2) = Ex(T.ESEQ(seq exparr, unEx(exp2))) 
 	      
   fun recExp (exparr) =
       let val r = Temp.newtemp()
