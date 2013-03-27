@@ -22,6 +22,7 @@ translate.sml
 temp.sig
 temp.sml
 tree.sml
+printtree.sml
 
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm

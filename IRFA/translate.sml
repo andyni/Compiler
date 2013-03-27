@@ -133,7 +133,8 @@ struct
 		T.CONST	F.wordSize), unEx(exp)])),T.TEMP(r)))
       end
  
-  fun seqExp (exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
+  fun seqExp ([] , exp) = Ex(unEx(exp))
+    | seqExp (exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
 			      
   fun makeVar (access, initval) = 
       let val (lev,acc) = access
