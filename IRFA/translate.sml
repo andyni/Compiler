@@ -99,13 +99,11 @@ struct
 	  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
 	  val pos = case currParent of InnerLevel(k)=> !(#num (#frame (k)))
 	      	       		  | Outermost =>  0
-
-
       in
 
 	  if (defId = currId) 
 	  then T.TEMP(F.FP)
-	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
+	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(4)))
       end
 
   fun simpleVar (access, level) = 

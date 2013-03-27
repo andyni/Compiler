@@ -20,11 +20,10 @@ structure F : FRAME = MipsFrame
 	  val _ = Translate.resetfraglist();
 	  val _ = Temp.reset();
 	  val absyn = Parse.parse file
-	  val tree = Semant.transProg absyn
+	  val tree = (FindEscape.findEscape absyn;Semant.transProg absyn)
       in
 	  PrintAbsyn.print(TextIO.stdOut, absyn);
 	  printIRfrags (Translate.getResult());
-	  FindEscape.findEscape absyn;
           Printtree.printtree(TextIO.stdOut, tree) 
       end
 

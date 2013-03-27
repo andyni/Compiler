@@ -60,13 +60,21 @@ struct
   and traverseDecs(env, d, [] : Absyn.dec list) : escEnv = env
     | traverseDecs(env, d, a::l : Absyn.dec list) : escEnv = 
       let 
-	  fun enter (env:escEnv, l) = foldr (fn({name, escape, typ, pos},env) => (escape := false; Symbol.enter(env, name, (d, escape)))) env l
+      	  val maxInRegs = 3
+	  fun enter (env:escEnv, l, dep) = foldr (fn({name, escape, typ,pos},env) => (escape := false; Symbol.enter(env, name, (dep, escape)))) env l
+	  fun totalUnescaped({name,escape,typ,pos}::l,total) =
+	      		let val isEscaped = case !escape of true => 0
+			    		    	 	  | false => 1
+			in
+			  (if (total>maxInRegs) then escape:=true else ();totalUnescaped(l,total+isEscaped))
+			end
+  	    | totalUnescaped([],total)=()    
 
 	  fun traverse (Absyn.VarDec {name, typ, init, pos, escape}) = 
 	      (escape:=false; Symbol.enter(env, name, (d, escape)))
 	    | traverse (Absyn.TypeDec tylist) = env
 	    | traverse (Absyn.FunctionDec({name, params, result, body, pos}::fundec)) = 
-	      (traverseExp(enter(env, params), d+1, body); traverse(Absyn.FunctionDec(fundec)))
+	      (traverseExp(enter(env, params, d+1), d+1, body); totalUnescaped(params,0); traverse(Absyn.FunctionDec(fundec)))
 	    | traverse (Absyn.FunctionDec([])) = env
 	      
       in 
