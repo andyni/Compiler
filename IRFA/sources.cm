@@ -22,6 +22,8 @@ translate.sml
 temp.sig
 temp.sml
 tree.sml
+findescape.sml
+
 
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm
