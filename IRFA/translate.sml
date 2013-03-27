@@ -98,7 +98,9 @@ struct
 	  val pos = case currParent of InnerLevel(k)=> !(#num (#frame (k)))
 	      	       		  | Outermost =>  0
 
+
       in
+
 	  if (defId = currId) 
 	  then T.TEMP(F.FP)
 	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(pos)))
@@ -162,12 +164,11 @@ struct
 	  val bodylabel = Temp.newlabel()
 	  val donelabel = Temp.newlabel()
       in
-	  Nx(seq [T.LABEL(testlabel),
-		   unCx(condition)(testlabel, donelabel),
+	  Nx(seq [ T.JUMP(T.NAME(testlabel),[testlabel]),
 		   T.LABEL(bodylabel),
 		   unNx(body),
-		   T.JUMP(T.NAME(testlabel), [testlabel]),
-		   T.LABEL(donelabel),
+		   T.LABEL(testlabel),
+		   unCx(condition)(bodylabel, break),
 		   T.LABEL(break)
 	  ])
       end
@@ -191,9 +192,6 @@ struct
 		   T.LABEL(break)
 	    ])
       end
-
-      
-      fun getStm(e) = unNx(e)
 
   fun procEntryExit {level=level, body=body} = 
       let val InnerLevel({frame=frame,...}) = level
