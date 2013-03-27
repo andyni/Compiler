@@ -9,10 +9,8 @@ struct
        in (if (d>depth') then escape':=true else ())
        end) 
     | traverseVar(env:escEnv, d:depth, Absyn.FieldVar(v,id,pos)) : unit = 
-      (traverseVar(env, d, v);
-       let val SOME(depth', escape') = Symbol.look(env, id)
-       in (if (d>depth') then escape':=true else ())
-       end) 
+      traverseVar(env, d, v)
+ 
     | traverseVar(env:escEnv, d:depth, Absyn.SubscriptVar(v,exp,pos)) : unit = 
       (traverseVar(env, d, v); traverseExp(env, d, exp))
 
