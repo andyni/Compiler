@@ -34,11 +34,11 @@ struct
     fun transTy (tenv, Absyn.NameTy(name,pos)) =
     	getTyOption(Symbol.look(tenv,name), pos, ("Type "^Symbol.name name^" does not exist"))
       | transTy (tenv, Absyn.RecordTy(fieldlist)) =
-      	let fun createRecList(a,{name,escape,typ,pos}::l) =
-    		createRecList((name, getTyOption(Symbol.look(tenv,typ),pos,("Record field type "^Symbol.name typ^" does not exist" )))::a,l)
-    	      | createRecList(a,[]) = a
+      	let fun createRecList({name,escape,typ,pos}::l) =
+    		(name, getTyOption(Symbol.look(tenv,typ),pos,("Record field type "^Symbol.name typ^" does not exist" )))::createRecList(l)
+    	      | createRecList([]) = []
    	in
-	    Types.RECORD(createRecList([],fieldlist), ref ())
+	    Types.RECORD(createRecList(fieldlist), ref ())
 	end
       | transTy (tenv, Absyn.ArrayTy(name,pos)) =
     	Types.ARRAY(getTyOption(Symbol.look(tenv,name),pos, "Type of Array "^Symbol.name name^" does not exist"), ref ()) 
@@ -172,18 +172,20 @@ struct
 	      (* The For loop body should be TYPE.Unit *)
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
 	        (breakLevel:=(!breakLevel)+1;
-		let val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT, access=Tr.allocLocal(level)(!escape)})
-		    val access = Tr.allocLocal(level)(!escape)
+		let 
+		    val mylevel = Tr.newLevel({parent=level, name=Temp.newlabel(), formals=[true]})
+	      	    val access = Tr.allocLocal(mylevel)(!escape)
+		    val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT, access=access})
 		    val lo' = trexp lo
 		    val hi' = trexp hi
 		    val breaklabel = Temp.newlabel()
-		    val {exp=body', ty=ty1} = transExp(venv',tenv,body,level,breaklabel) 
+		    val {exp=body', ty=ty1} = transExp(venv',tenv,body,mylevel,breaklabel) 
 		in 
 		    checkInt(lo', pos);
 		    checkInt(hi', pos);
 		    if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
 		    breakLevel:=(!breakLevel)-1;
-      		    {exp=Tr.forexp(Tr.simpleVar(access,level), #exp lo', #exp hi', body', breaklabel), ty=Types.UNIT}
+      		    {exp=Tr.forexp(Tr.simpleVar(access,mylevel), #exp lo', #exp hi', body', breaklabel), ty=Types.UNIT}
 		end)
 		
 	      (* Checks if array type matches initial value *)

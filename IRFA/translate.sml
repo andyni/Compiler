@@ -128,7 +128,9 @@ struct
   fun allocateArr (size,exp) = 
       let val r = Temp.newtemp()
       in
-	  Nx(T.MOVE(T.TEMP(r), F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),T.CONST F.wordSize), unEx(exp)])))
+	  Ex(T.ESEQ(T.MOVE(T.TEMP(r),
+		F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),
+		T.CONST	F.wordSize), unEx(exp)])),T.TEMP(r)))
       end
  
   fun seqExp (exparr, exp) = Ex(T.ESEQ(seq(exparr),unEx(exp)))
