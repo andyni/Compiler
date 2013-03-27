@@ -35,5 +35,6 @@ sig
 
     val procEntryExit : {level: level, body: exp} -> unit
     val getResult : unit -> frag list
+    val resetfraglist : unit -> unit
 end
     

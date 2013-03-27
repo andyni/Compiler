@@ -11,16 +11,17 @@ structure F : FRAME = MipsFrame
 		  | F.STRING(name, formals) => print ("Label of string: " ^ (Symbol.name name) ^ "\n")); 
 	       printList(l))
       in
-	  print "Beginning of frag list: ";
+	  print "Beginning of frag list: \n";
 	  printList fraglist
       end
 
   fun typecheck file =
       let 
+	  val _ = Translate.resetfraglist();
+	  val _ = Temp.reset();
 	  val absyn = Parse.parse file
 	  val tree = Semant.transProg absyn
       in
-	  Temp.reset();
 	  PrintAbsyn.print(TextIO.stdOut, absyn);
 	  printIRfrags (Translate.getResult());
 	  FindEscape.findEscape absyn;

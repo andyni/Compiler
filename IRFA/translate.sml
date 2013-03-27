@@ -18,6 +18,8 @@ struct
 
   val fraglist = ref ([] : F.frag list)
 
+  fun resetfraglist () = (fraglist:=[])
+			     
   val NIL = Ex(T.CONST 0)
 
   fun newLevel {parent = lev, name = label, formals = formlist} = InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
