@@ -23,6 +23,7 @@ temp.sig
 temp.sml
 tree.sml
 printtree.sml
+findescape.sml
 
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm
