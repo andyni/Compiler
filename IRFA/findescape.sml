@@ -53,7 +53,7 @@ struct
     | traverseExp(env:escEnv, d:depth, Absyn.LetExp {decs, body, pos}) : unit = 
       let val env' = traverseDecs(env, d, decs)
       in 
-	  traverseExp(env', d+1, body)
+	  traverseExp(env', d, body)
       end
     | traverseExp(env:escEnv, d:depth, Absyn.ArrayExp {typ, size, init, pos}) : unit = 
       (traverseExp(env, d, size);
