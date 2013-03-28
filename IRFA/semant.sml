@@ -63,7 +63,7 @@ struct
 		else if (oper=Absyn.GtOp orelse oper=Absyn.LtOp orelse oper=Absyn.GeOp orelse oper=Absyn.LeOp)
 		then
 		    (case type1 of
-			 Types.INT => (checkInt({exp=exp1,ty=type1}, pos); checkInt({exp=exp2, ty=type2}, pos))
+			     Types.INT => (checkInt({exp=exp1,ty=type1}, pos); checkInt({exp=exp2, ty=type2}, pos))
 		       | Types.STRING => (checkString({exp=exp1,ty=type1}, pos); checkString({exp=exp2,ty=type2}, pos))
 		       | _ => (ErrorMsg.error pos "GE,LE,GT,LT operations not supported");
 		     case oper of 
@@ -76,7 +76,7 @@ struct
 		else if (oper=Absyn.EqOp orelse oper=Absyn.NeqOp)
 		then
 		    let val myexp = case oper of 
-		    	    		Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
+		    	    	Absyn.EqOp =>  Tr.relop(T.EQ,exp1,exp2)
 				      | Absyn.NeqOp => Tr.relop(T.NE,exp1,exp2)
 
 		    in
@@ -84,10 +84,10 @@ struct
 			(case (type1,type2) of
 			     (Types.INT, Types.INT) => {exp=(myexp),ty=Types.INT}
 			   | (Types.STRING, Types.STRING) => 
-			   {exp=(case oper of Absyn.EqOp => Tr.strcmp(exp1,exp2)
-				           |  Absyn.NeqOp => Tr.nstrcmp(exp1,exp2)),ty=Types.INT}
+			      {exp=(case oper of Absyn.EqOp => Tr.strcmp(exp1,exp2)
+				                  |  Absyn.NeqOp => Tr.nstrcmp(exp1,exp2)),ty=Types.INT}
 			   | (Types.RECORD(_), Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
-		           | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(myexp),ty=Types.INT}
+		       | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(myexp),ty=Types.INT}
 			   | (Types.RECORD(_), Types.NIL) => {exp=(myexp),ty=Types.INT}
 			   | (Types.NIL, Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
 		           | _ => (ErrorMsg.error pos "Type mismatch in EQ/NEQ comparison."; {exp=(myexp),ty=Types.BOTTOM}))
