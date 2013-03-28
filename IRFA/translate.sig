@@ -14,6 +14,8 @@ sig
     val binop : Tree.binop * exp * exp -> exp
     val relop : Tree.relop * exp * exp -> exp 
     val makeLetCall : Tree.stm list * exp -> exp
+    val strcmp : exp * exp -> exp
+    val nstrcmp : exp * exp -> exp
     val recExp : exp list -> exp
     val allocateArr : exp * exp -> exp
     val seqExp : Tree.stm list * exp -> exp

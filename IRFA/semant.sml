@@ -83,7 +83,9 @@ struct
 			(* INT/STRING/RECORD/ARRAY types can all be compared. RECORD may be NIL *)
 			(case (type1,type2) of
 			     (Types.INT, Types.INT) => {exp=(myexp),ty=Types.INT}
-			   | (Types.STRING, Types.STRING) => {exp=(myexp),ty=Types.INT}
+			   | (Types.STRING, Types.STRING) => 
+			   {exp=(case oper of Absyn.EqOp => Tr.strcmp(exp1,exp2)
+				           |  Absyn.NeqOp => Tr.nstrcmp(exp1,exp2)),ty=Types.INT}
 			   | (Types.RECORD(_), Types.RECORD(_)) => {exp=(myexp),ty=Types.INT}
 		           | (Types.ARRAY(_), Types.ARRAY(_)) => {exp=(myexp),ty=Types.INT}
 			   | (Types.RECORD(_), Types.NIL) => {exp=(myexp),ty=Types.INT}

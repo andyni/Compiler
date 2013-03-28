@@ -115,6 +115,20 @@ struct
   fun makeLetCall ([], exp2) = Ex(unEx(exp2))
       | makeLetCall (exparr,exp2) = Ex(T.ESEQ(seq exparr, unEx(exp2))) 
 	      
+  fun strcmp (str1, str2) = Ex(F.externalCall("stringEqual",[unEx(str1),unEx(str2)]))
+
+  fun nstrcmp (str1, str2) =
+      let val r = Temp.newtemp()
+	  val t = Temp.newlabel() and f=Temp.newlabel()
+      in
+	  Ex(T.ESEQ(seq [T.MOVE(T.TEMP r, T.CONST 1),
+			T.CJUMP(T.EQ,
+ 			F.externalCall("stringEqual",[unEx(str1), unEx(str2)]), T.CONST 0, t, f),
+			T.LABEL f,
+			T.MOVE(T.TEMP r, T.CONST 0),
+			T.LABEL t], T.TEMP r))
+      end
+
   fun recExp (exparr) =
       let val r = Temp.newtemp()
 	  val recpointer = F.externalCall("malloc", [T.CONST (length(exparr)*F.wordSize)])
