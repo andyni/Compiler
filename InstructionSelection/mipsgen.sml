@@ -171,13 +171,13 @@ struct
 
       	| munchExp(Tr.BINOP(Tr.MUL,e1,e2)) = 
       	  	result(fn r => emit(A.OPER
-      			{assem="mult `s0,`s1 \n mflo `d0 \n", 
+      			{assem="mult `s0,`s1 \nmflo `d0 \n", 
       			src=[munchExp e1,munchExp e2],
       			dst=[r], jump=NONE}))
 
       	| munchExp(Tr.BINOP(Tr.DIV,e1,e2)) =
       		result(fn r => emit(A.OPER
-      			{assem="div `s0,`s1 \n mflo `d0 \n", 
+      			{assem="div `s0,`s1 \nmflo `d0 \n", 
       			src=[munchExp e1,munchExp e2],
       			dst=[r], jump=NONE}))
 
