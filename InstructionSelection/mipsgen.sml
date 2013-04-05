@@ -72,11 +72,14 @@ struct
                         src=[munchExp e2], dst=[], jump=NONE})
 
         | munchStm (Tr.MOVE(Tr.MEM(e1),e2)) =
-            emit(A.OPER{assem="sw `s1, (`s0) \n",
+            emit(A.OPER{assem="sw `s1, 0(`s0) \n",
                         src=[munchExp e1, munchExp e2], dst=[], jump=NONE})
-
+	| munchStm (Tr.MOVE(Tr.TEMP i, Tr.TEMP k)) =
+	    emit(A.MOVE{assem="addi `d0,`s0,0 \n", src=k, dst=i})
+	| munchStm (Tr.MOVE(Tr.TEMP i, Tr.CALL(e,args))) =
+	    emit(A.OPER{assem="addi `d0, rv, 0 \n", src=[munchExp(Tr.CALL(e,args))], dst=[i], jump=NONE}) 
         | munchStm (Tr.MOVE(Tr.TEMP i, e2)) = 
-            emit(A.OPER{assem="sw `s0, (`d0) \n",
+            emit(A.OPER{assem="addi `d0,`s0,0 \n",
                         src=[munchExp e2], dst=[i], jump=NONE})
 
         | munchStm (Tr.EXP(Tr.CALL(e,args))) = 
@@ -154,11 +157,15 @@ struct
 
       	| munchExp(Tr.TEMP t) = t
 
-        | munchExp(Tr.NAME name) = 
+       (* | munchExp(Tr.NAME name) = 
           result(fn r => emit(A.LABEL
-            {assem=Symbol.name name ^ ": ", lab=name}))
+            {assem=Symbol.name name ^ ": ", lab=name}))*)
 
-      	| munchExp(Tr.CALL(e,args)) =
+      	| munchExp(Tr.CALL(Tr.NAME name,args)) =
+            result(fn r => emit(A.OPER{assem="jal "^(Symbol.name(name))^" \n",
+            src=munchArgs(0,args), dst=[], jump=SOME([name])}))
+
+     	| munchExp(Tr.CALL(e,args)) =
             result(fn r => emit(A.OPER{assem="jal `s0 \n",
             src=(munchExp e)::munchArgs(0,args), dst=[], jump=NONE}))
 
