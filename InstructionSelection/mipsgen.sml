@@ -8,7 +8,8 @@ struct
   	let 
   		val ilist = ref (nil : A.instr list)
   		fun emit x = (ilist := x::(!ilist))
-  		fun result(gen) = let val t = Temp.newtemp() in gen t; t end
+  		fun result(gen) = let val t = Temp.newtemp() in gen t; t
+  		end
 
       fun getRelop relop = case relop of 
                                 Tr.EQ => "beq"
@@ -85,6 +86,9 @@ struct
             emit(A.OPER{assem="addi `d0,`s0,0 \n",
                         src=[munchExp e2], dst=[i], jump=NONE})
 
+   	| munchStm (Tr.EXP(Tr.CALL(Tr.NAME n,args))) = 
+            emit(A.OPER{assem="jal "^(Symbol.name n)^" \n",
+                        src=munchArgs(0,args), dst=[], jump=SOME([n])})
         | munchStm (Tr.EXP(Tr.CALL(e,args))) = 
             emit(A.OPER{assem="jal `s0 \n",
                         src=(munchExp e)::munchArgs(0,args), dst=[], jump=NONE})
@@ -199,7 +203,7 @@ struct
 	        else emit(A.OPER{assem="sw `s0,"^Int.toString((~4)*i)^"(fp) \n",
 	   		                   src=[munchExp a], dst=[], jump=NONE}); 
 	        munchArgs(i+1,l));
-   	  in 
-     		 (munchStm stm; rev (!ilist))
+   	in 
+     		  munchStm stm; rev (!ilist)
     	end
 end

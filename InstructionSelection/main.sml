@@ -3,14 +3,15 @@ struct
 structure F : FRAME = MipsFrame
 
    fun emitproc out (F.PROC{body,frame}) =
-     let val _ = print ("emit " ^ Symbol.name(F.name frame) ^ "\n")
+     let val _ = print ("emit "^ Symbol.name(F.name frame) ^ "\n")
 	 val stms = Canon.linearize body
          val _ = app (fn s => Printtree.printtree(out,s)) stms; 
          val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
-	 val instrs =   List.concat(map (MipsGen.codegen frame) stms') 
+         val stms'' = Tree.LABEL(MipsFrame.name(frame))::stms'
+	 val instrs =   List.concat(map (MipsGen.codegen frame) stms'') 
          val format0 = Assem.format(Temp.makestring)
       in  
-      	  map (fn i => (TextIO.output(out,format0 i))) instrs; () 
+      	  map (fn i => (TextIO.output(out,format0 i))) instrs; TextIO.output(out,"\n"); () 
       end
     | emitproc out (F.STRING(lab,s)) = TextIO.output(out,F.string(lab,s))
 
