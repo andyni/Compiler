@@ -457,6 +457,6 @@ struct
 	    val toplevel = Tr.newLevel({parent=Tr.outermost, name=Temp.newlabel(), formals=[true]})
 	    val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, toplevel, breakLabel))
 	in
-		Tr.getStm(exp1)
+		Tr.functiondec(toplevel,exp1)
 	end
 end

@@ -9,7 +9,9 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
 			       
 val wordSize = 4
 val FP = Temp.newtemp()
-val RV = Temp.newtemp()	   
+val RV = Temp.newtemp()	 
+
+fun string(lab,s) = Symbol.name(lab) ^ ": " ^ s  
 
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
   | exp (InReg(register)) = (fn(expr) => Tree.TEMP(register))

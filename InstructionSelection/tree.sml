@@ -24,7 +24,7 @@ datatype stm = SEQ of stm * stm
       and relop = EQ | NE | LT | GT | LE | GE 
 	        | ULT | ULE | UGT | UGE
 
-  val flip: relop -> relop
+  val notRel: relop -> relop
 end
 
 structure Tree : TREE = 
@@ -53,16 +53,16 @@ datatype stm = SEQ of stm * stm
       and relop = EQ | NE | LT | GT | LE | GE 
 	        | ULT | ULE | UGT | UGE
 
-  fun flip EQ = NE
-    | flip NE = EQ
-    | flip LT = GE
-    | flip GT = LE
-    | flip LE = GT
-    | flip GE = LT
-    | flip ULT = UGE
-    | flip ULE = UGT
-    | flip UGT = UGE
-    | flip UGE = UGT
+  fun notRel EQ = NE
+    | notRel NE = EQ
+    | notRel LT = GE
+    | notRel GT = LE
+    | notRel LE = GT
+    | notRel GE = LT
+    | notRel ULT = UGE
+    | notRel ULE = UGT
+    | notRel UGT = UGE
+    | notRel UGE = UGT
 
 end
 

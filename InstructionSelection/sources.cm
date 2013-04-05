@@ -27,6 +27,7 @@ findescape.sml
 assem.sml
 codegen.sig
 mipsgen.sml
+canon.sml
 
 
 $/smlnj-lib.cm

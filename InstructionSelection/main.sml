@@ -2,29 +2,32 @@ structure Main =
 struct
 structure F : FRAME = MipsFrame
 
-
-  fun printIRfrags fraglist = 
-      let fun printList [] = print "End of frag list.\n"
-	    | printList (a::l) = 
-	      ((case a of 
-		    F.PROC({body, frame}) => Printtree.printtree (TextIO.stdOut, body)
-		  | F.STRING(name, formals) => print ("Label of string: " ^ (Symbol.name name) ^ "\n")); 
-	       printList(l))
-      in
-	  print "Beginning of frag list: \n";
-	  printList fraglist
+   fun emitproc out (F.PROC{body,frame}) =
+     let val _ = print ("emit " ^ Symbol.name(F.name frame) ^ "\n")
+	 val stms = Canon.linearize body
+         val _ = app (fn s => Printtree.printtree(out,s)) stms; 
+         val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
+	 val instrs =   List.concat(map (MipsGen.codegen frame) stms') 
+         val format0 = Assem.format(Temp.makestring)
+      in  
+      	  map (fn i => (TextIO.output(out,format0 i))) instrs; () 
       end
+    | emitproc out (F.STRING(lab,s)) = TextIO.output(out,F.string(lab,s))
 
-  fun typecheck file =
-      let 
-	  val _ = Translate.resetfraglist();
-	  val _ = Temp.reset();
-	  val absyn = Parse.parse file
-	  val tree = (FindEscape.findEscape absyn;Semant.transProg absyn)
-      in
-	  PrintAbsyn.print(TextIO.stdOut, absyn);
-	  printIRfrags (Translate.getResult());
-          Printtree.printtree(TextIO.stdOut, tree) 
-      end
+   fun withOpenFile fname f = 
+       let val out = TextIO.openOut fname
+        in (f out before TextIO.closeOut out) 
+	    handle e => (TextIO.closeOut out; raise e)
+       end 
+
+   fun compile filename = 
+       let val _ = Translate.resetfraglist();
+       	   val _ = Temp.reset();
+           val absyn = Parse.parse filename
+           val frags = (FindEscape.findEscape absyn; Semant.transProg absyn; Translate.getResult())
+        in 
+            withOpenFile (filename ^ ".s") 
+	     (fn out => (map (emitproc out) frags))
+        end
 
 end

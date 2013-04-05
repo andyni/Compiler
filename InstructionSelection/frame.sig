@@ -8,7 +8,7 @@ sig
     val name : frame -> Temp.label
     val forms : frame -> access list
     val allocLocal : frame -> bool -> access
-
+    val string : Temp.label * string -> string
     val FP : Temp.temp
     val RV : Temp.temp
     val wordSize: int

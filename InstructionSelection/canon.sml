@@ -1,304 +1,183 @@
 signature CANON = 
 sig
-    val canonicalize: Tree.stm -> CTree.stm' list
+    val linearize : Tree.stm -> Tree.stm list
+        (* From an arbitrary Tree statement, produce a list of cleaned trees
+	   satisfying the following properties:
+	      1.  No SEQ's or ESEQ's
+	      2.  The parent of every CALL is an EXP(..) or a MOVE(TEMP t,..)
+        *)
+
+    val basicBlocks : Tree.stm list -> (Tree.stm list list * Tree.label)
+        (* From a list of cleaned trees, produce a list of
+	 basic blocks satisfying the following properties:
+	      1. and 2. as above;
+	      3.  Every block begins with a LABEL;
+              4.  A LABEL appears only at the beginning of a block;
+              5.  Any JUMP or CJUMP is the last stm in a block;
+              6.  Every block ends with a JUMP or CJUMP;
+           Also produce the "label" to which control will be passed
+           upon exit.
+        *)
+
+    val traceSchedule : Tree.stm list list * Tree.label -> Tree.stm list
+         (* From a list of basic blocks satisfying properties 1-6,
+            along with an "exit" label,
+	    produce a list of stms such that:
+	      1. and 2. as above;
+              7. Every CJUMP(_,t,f) is immediately followed by LABEL f.
+            The blocks are reordered to satisfy property 7; also
+	    in this reordering as many JUMP(T.NAME(lab)) statements
+            as possible are eliminated by falling through into T.LABEL(lab).
+         *)
 end
 
 structure Canon : CANON = 
 struct
 
   structure T = Tree
-  structure CT = CTree
+
+ fun linearize(stm0: T.stm) : T.stm list =
+ let
+  infix %
+  fun (T.EXP(T.CONST _)) % x = x
+    | x % (T.EXP(T.CONST _)) = x
+    | x % y = T.SEQ(x,y)
+
+  fun commute(T.EXP(T.CONST _), _) = true
+    | commute(_, T.NAME _) = true
+    | commute(_, T.CONST _) = true
+    | commute _ = false
+
+  val nop = T.EXP(T.CONST 0)
+
+  fun reorder ((e as T.CALL _ )::rest) =
+	let val t = Temp.newtemp()
+	 in reorder(T.ESEQ(T.MOVE(T.TEMP t, e), T.TEMP t) :: rest)
+	end
+    | reorder (a::rest) =
+	 let val (stms,e) = do_exp a
+	     val (stms',el) = reorder rest
+	  in if commute(stms',e)
+	     then (stms % stms',e::el)
+	     else let val t = Temp.newtemp()
+		   in (stms % T.MOVE(T.TEMP t, e) % stms', T.TEMP t :: el)
+		  end
+	 end
+    | reorder nil = (nop,nil)
+
+  and reorder_exp(el,build) = let val (stms,el') = reorder el
+                        in (stms, build el')
+                       end
+
+  and reorder_stm(el,build) = let val (stms,el') = reorder (el)
+		 	 in stms % build(el')
+			end
+
+  and do_stm(T.SEQ(a,b)) = 
+               do_stm a % do_stm b
+    | do_stm(T.JUMP(e,labs)) = 
+	       reorder_stm([e],fn [e] => T.JUMP(e,labs))
+    | do_stm(T.CJUMP(p,a,b,t,f)) = 
+               reorder_stm([a,b], fn[a,b]=> T.CJUMP(p,a,b,t,f))
+    | do_stm(T.MOVE(T.TEMP t,T.CALL(e,el))) = 
+               reorder_stm(e::el,fn e::el => T.MOVE(T.TEMP t,T.CALL(e,el)))
+    | do_stm(T.MOVE(T.TEMP t,b)) = 
+	       reorder_stm([b],fn[b]=>T.MOVE(T.TEMP t,b))
+    | do_stm(T.MOVE(T.MEM e,b)) = 
+	       reorder_stm([e,b],fn[e,b]=>T.MOVE(T.MEM e,b))
+    | do_stm(T.MOVE(T.ESEQ(s,e),b)) = 
+	       do_stm(T.SEQ(s,T.MOVE(e,b)))
+    | do_stm(T.EXP(T.CALL(e,el))) = 
+	       reorder_stm(e::el,fn e::el => T.EXP(T.CALL(e,el)))
+    | do_stm(T.EXP e) = 
+	       reorder_stm([e],fn[e]=>T.EXP e)
+    | do_stm s = reorder_stm([],fn[]=>s)
+
+  and do_exp(T.BINOP(p,a,b)) = 
+                 reorder_exp([a,b], fn[a,b]=>T.BINOP(p,a,b))
+    | do_exp(T.MEM(a)) = 
+		 reorder_exp([a], fn[a]=>T.MEM(a))
+    | do_exp(T.ESEQ(s,e)) = 
+		 let val stms = do_stm s
+		     val (stms',e) = do_exp e
+		  in (stms%stms',e)
+		 end
+    | do_exp(T.CALL(e,el)) = 
+		 reorder_exp(e::el, fn e::el => T.CALL(e,el))
+    | do_exp e = reorder_exp([],fn[]=>e)
+
+  (* linear gets rid of the top-level SEQ's, producing a list *)
+  fun linear(T.SEQ(a,b),l) = linear(a,linear(b,l))
+    | linear(s,l) = s::l
+
+ in (* body of linearize *)
+    linear(do_stm stm0, nil)
+ end
+
+  type block = T.stm list
+
+  (* Take list of statements and make basic blocks satisfying conditions
+       3 and 4 above, in addition to the extra condition that 
+      every block ends with a JUMP or CJUMP *)
+
+  fun basicBlocks stms = 
+     let val done = Temp.newlabel()
+         fun blocks((head as T.LABEL _) :: tail, blist) =
+	     let fun next((s as (T.JUMP _))::rest, thisblock) =
+		                endblock(rest, s::thisblock)
+		   | next((s as (T.CJUMP _))::rest, thisblock) =
+                                endblock(rest,s::thisblock)
+		   | next(stms as (T.LABEL lab :: _), thisblock) =
+                                next(T.JUMP(T.NAME lab,[lab]) :: stms, thisblock)
+		   | next(s::rest, thisblock) = next(rest, s::thisblock)
+		   | next(nil, thisblock) = 
+			     next([T.JUMP(T.NAME done, [done])], thisblock)
 		 
-  structure LS = CTree.LocSet
-  structure LH = LabelHot
-  type label = Temp.label
+		 and endblock(stms, thisblock) = 
+		            blocks(stms, rev thisblock :: blist)
+		     
+	     in next(tail, [head])
+	     end
+	   | blocks(nil, blist) = rev blist
+	   | blocks(stms, blist) = blocks(T.LABEL(Temp.newlabel())::stms, blist)
+      in (blocks(stms,nil), done)
+     end
 
-  fun cts(T.SEQ(s1,s2)) = (cts s1) @ (cts s2) 
-    | cts(T.LABEL l) = [CT.LABEL l]
-    | cts(T.JUMP(tar,lbls)) = 
-      let val (s,tar') = cte tar
-      in
-	  s @ [CT.JUMP(tar',lbls)]
-      end
-    | cts(T.CJUMP(ro,e1,e2,l1,l2)) = 
-      let val (s',e1',e2') = twoExps(e1,e2)
-      in
-	  s'@ [CT.CJUMP(ro,e1',e2',l1,l2)]
-      end
-    | cts(T.MOVE(T.MEM e1,e2)) = 
-      let val (s,e1',e2') = twoExps(e1,e2)
-      in
-	  s@[CT.MOVE(CT.MEM e1', CT.RVEXP e2')]
-      end
-    | cts(T.MOVE(l, e)) = 
-      let val (s',e') = cte e
-      in
-	  s'@[CT.MOVE(ctl l, CT.RVEXP e')]
-      end
-    | cts(T.EXP e) = 
-      let val (s',_) = cte e 
-      in
-	  s'
-      end
-  and cte(T.BINOP(b,e1,e2)) = 
-      let val (s',e1',e2') = twoExps(e1,e2)
-      in
-	  (s',CT.BINOP(b,e1',e2'))
-      end
-    | cte(T.LOC(T.MEM e)) = 
-      let val (s',e') = cte e
-      in
-	  (s', CT.LOC(CT.MEM e'))
-      end
-    | cte(T.LOC l) = ([],CT.LOC (ctl l))
-    | cte(T.ESEQ(s,e)) = 
-      let val s1' = cts s
-	  val (s2',e')= cte e
-      in
-	  (s1'@s2',e')
-      end
-    | cte(T.CONST c) = ([], CT.CONST c)
-    | cte(T.CALL(f,args)) = 
-      let val f' = ctl f  (* will fail on CALL(MEM ...) but we don't do that
-                             in Tiger*)
+  fun enterblock(b as (T.LABEL s :: _), table) = Symbol.enter(table,s,b)
+    | enterblock(_, table) = table
 
-	  fun xlat(slist,alist,[]) = (slist, alist)
-	    | xlat(slist,alist,arg::rest) = 
-	      let val (s',a') = cte arg
-		  val t = Temp.newtemp()
-	      in
-		  xlat(CT.MOVE(CT.TEMP t, CT.RVEXP a')::(s'@slist),
-		       CT.LOC(CT.TEMP t)::alist,
-		       rest)
-	      end
-	  val (slistRev,alistRev) = xlat([],[],args)
-	  val rv = Temp.newtemp()
-	  (* This move may be superflous, but then  reg alloc 
-	   * will have an easy time cleaning it up later 
-	   *)
-	  val mv = CT.MOVE(CT.TEMP rv, CT.RVCALL(f', rev alistRev))
-      in
-	  (rev (mv::slistRev), CT.LOC(CT.TEMP rv))
-      end
-      
-  and ctl(T.MEM e) = raise Fail ("Need to do something more complex here")
-    | ctl(T.TEMP t) = CT.TEMP t
-    | ctl(T.NAME lbl) = CT.NAME lbl
-  and twoExps(e1,e2) = 
-      let val (s1',e1') = cte e1
-	  val (s2',e2') = cte e2
-      in
-	  if LS.isEmpty(LS.intersection(CT.readSet   e1',
-					CT.writeSet' s2'))
-	  then (s1'@s2',e1',e2')
-	  else let val t = Temp.newtemp ()
-		   val move = CT.MOVE(CT.TEMP t, CT.RVEXP e1')
-	       in
-		   (s1' @ (move::s2'), CT.LOC(CT.TEMP t),e2')
-	       end
-      end
+  fun splitlast([x]) = (nil,x)
+    | splitlast(h::t) = let val (t',last) = splitlast t in (h::t', last) end
 
-type bblock = {start: label,
-	       stms: CT.stm' list,
-	       fall: label option}
+  fun trace(table,b as (T.LABEL lab :: _),rest) = 
+   let val table = Symbol.enter(table, lab, nil)
+    in case splitlast b
+     of (most,T.JUMP(T.NAME lab, _)) =>
+	  (case Symbol.look(table, lab)
+            of SOME(b' as _::_) => most @ trace(table, b', rest)
+	     | _ => b @ getnext(table,rest))
+      | (most,T.CJUMP(opr,x,y,t,f)) =>
+          (case (Symbol.look(table,t), Symbol.look(table,f))
+            of (_, SOME(b' as _::_)) => b @ trace(table, b', rest)
+             | (SOME(b' as _::_), _) => 
+		           most @ [T.CJUMP(T.notRel opr,x,y,f,t)]
+		                @ trace(table, b', rest)
+             | _ => let val f' = Temp.newlabel()
+		     in most @ [T.CJUMP(opr,x,y,t,f'), 
+				T.LABEL f', T.JUMP(T.NAME f,[f])]
+			     @ getnext(table,rest)
+                        end)
+      | (most, T.JUMP _) => b @ getnext(table,rest)
+     end
 
-fun bcmp(b1:bblock, b2:bblock) = Symbol.compare(#start b1, #start b2)
+  and getnext(table,(b as (T.LABEL lab::_))::rest) = 
+           (case Symbol.look(table, lab)
+             of SOME(_::_) => trace(table,b,rest)
+              | _ => getnext(table,rest))
+    | getnext(table,nil) = nil
 
-structure BKey = struct type ord_key = bblock
-			val compare = bcmp
-		 end
-structure LKey = struct type ord_key = label
-			val compare = Symbol.compare
-		 end
-structure LMap = SplayMapFn(LKey)
+  fun traceSchedule(blocks,done) = 
+       getnext(foldr enterblock Symbol.empty blocks, blocks)
+         @ [T.LABEL done]
 
-
-structure BSet = SplaySetFn(BKey)
-
-fun blks stms = 
-    let fun hlp(bb,[],m) = LMap.insert(m,
-				       #start bb,
-				       {start = #start bb,
-					stms = rev (#stms bb),
-					fall = NONE})
-	  | hlp({start,stms,fall}, CT.LABEL(l)::r,m) =
-	    let val thisBlock={start = start,
-			       stms = rev stms,
-			       fall = SOME l}
-	    in
-		hlp({start = l,
-		     stms = [CT.LABEL l],
-		     fall = NONE},
-		    r,
-		    LMap.insert(m, start, thisBlock))
-	    end
-	  | hlp({start,stms,fall},a::r,m) = hlp({start = start,
-						 stms = a::stms,
-					         fall = NONE},
-						r,
-						m)
-    in					    
-	case stms of
-	    (a as CT.LABEL l)::r => (l,hlp({start = l,stms = [a],fall = NONE},r,LMap.empty))
-	  |  _ => raise Fail ("List of statements must start with a label!")
-    end
-
-fun linearize (start, blocks) = 
-    let val start' = case LMap.find(blocks,start) of
-			 SOME x => x
-		       | NONE => raise Fail "could not find start block"
-	fun targs {start,stms,fall} = case rev stms of
-					  CT.JUMP(_,lst)::_ => lst
-					| CT.CJUMP(_,_,_,lT,lF)::_ => [lF,lT]
-					| _ => (case fall of
-						    SOME x => [x]
-						  | NONE => (print "FAILING!\n";
-							     Printtree.printctree(TextIO.stdOut,
-										  stms);
-							     raise Fail
-								       "No jump, no fall through"))
-	   
-	fun addSuccs(bb,lst) = 
-	    let val succLbls = targs bb
-		fun lookBlk x = case LMap.find(blocks,x) of
-				    SOME y => y
-				  | NONE => raise Fail("Successor of block does not exist!")
-		val hotLbls = List.filter LH.isHot succLbls
-		val medLbls = List.filter LH.isMed succLbls
-		val coldLbls = List.filter LH.isCold succLbls
-	    in
-		(map lookBlk (hotLbls @ medLbls))@ lst @(map lookBlk coldLbls)
-	    end
-	    
-	fun hlp([],_, ans) = rev ans
-	  | hlp(a::l, visited, ans) = 
-	    if BSet.member(visited,a) 
-	    then hlp(l,visited,ans)
-	    else hlp(addSuccs(a,l),BSet.add(visited,a),a::ans)
-    in
-	hlp([start'],BSet.empty,[])
-    end
-
-fun cleanBlocks trace = 
-    let fun ensureTargets([],rTrace) = rev rTrace
-	  | ensureTargets([b1],rTrace) =
-	    (case rev (#stms b1) of
-		 (CT.JUMP _) :: _ => ensureTargets([],b1::rTrace)
-	       | (CT.CJUMP(rop,e1,e2,lT,lF)) :: r => 
-		 let val newL = Temp.newlabel()
-		     val newB = {start = newL,
-				 stms = [CT.LABEL newL,
-					 CT.JUMP(CT.LOC(CT.NAME newL),[newL])],
-				 fall = NONE}
-		     val newJ = CT.CJUMP(rop,e1,e2,lT,newL)
-		 in
-		     ensureTargets([],newB::{start = #start b1,
-					     stms = rev(newJ::r),
-					     fall = SOME newL}::rTrace)
-		 end
-	       | x => let val newL = valOf(#fall b1)
-			  val newJ = CT.JUMP(CT.LOC(CT.NAME newL),[newL])
-		      in 
-			  ensureTargets([],{start = #start b1,
-					    stms = rev(newJ::x),
-					    fall = NONE}::rTrace)
-		      end)
-	  | ensureTargets(b1::b2::l,rTrace) = 
-	    let val b2lbl = case #stms b2 of 
-				(CT.LABEL x)::_ => x
-			      | _ => raise Fail "Block does not start w/ labl"
-		val (stms',b3) = case rev (#stms b1) of
-				     (CT.JUMP _)::_ => ((#stms b1),NONE)
-				   | CT.CJUMP(rop,e1,e2,lT,lF)::r => 
-				     if lF = b2lbl
-				     then ((#stms b1), NONE)
-				     else if lT = b2lbl
-				     then (rev(CT.CJUMP(T.flip rop,e1,e2,lF,lT)::r), NONE)
-				     else let val newL = Temp.newlabel()
-					      val newB = {start = newL,
-							  stms = [CT.LABEL newL,
-								  CT.JUMP(CT.LOC(CT.NAME newL),
-									  [newL])],
-							  fall = NONE}
-					      val newJ = CT.CJUMP(rop,e1,e2,lT,newL)
-					  in
-					      (rev(newJ::r),SOME newB)
-					  end
-				   | x => if case (#fall b1) of 
-						 SOME x => x = b2lbl
-					       | NONE => false
-					  then ((#stms b1), NONE)
-					  else let val newL = Temp.newlabel()
-						   val newJ = CT.JUMP(CT.LOC(CT.NAME newL),[newL])
-					       in
-						   (rev(newJ::x),NONE)
-					       end
-	    in
-		ensureTargets(b2::l,case b3 of
-					SOME x => x::{start = #start b1,
-						      stms = stms',
-						      fall = SOME (#start x)} ::rTrace
-
-				      | NONE => {start = #start b1,
-						 stms = stms',
-						 fall = #fall b1}::rTrace)
-	    end
-	val buildMap = foldl (fn(b,m)=>LMap.insert(m,#start b, b)) LMap.empty 
-	
-	fun threadJumps trace  = 
-	    let val changed = ref false
-		val m = buildMap trace
-		fun jmp' t = case LMap.find(m,t) of
-				  NONE => raise Fail ("missing target: " ^ (Symbol.name t) )
-				| SOME x => case #stms x of
-						[CT.LABEL _, 
-						 a as CT.JUMP _] => SOME a
-					      | _ => NONE
-
-		fun lp(trace',[]) = if !changed
-				    then threadJumps(rev trace')
-				    else rev trace'
-		  | lp(trace',(a:bblock)::l) = 
-
-		    lp({start = # start a,
-			stms = (case rev( #stms a ) of
-				    CT.JUMP(x, [targ]) ::r => 
-				    (case jmp' targ of
-					 SOME y => (changed:= true;rev (y::r))
-				       | NONE => #stms a)
-				  | CT.CJUMP(rop,e1,e2,lT,lF)::r =>
-				    (case jmp' lT of
-					 SOME(CT.JUMP(_,[lT'])) => (changed:= true;
-								    rev(CT.CJUMP(rop,
-										 e1,
-										 e2,
-										 lT',
-										 lF)::r))
-				       | _ => #stms a)
-				  | _ => #stms a),
-			fall = #fall a}::trace',l)
-	    in
-		lp([],trace)
-	    end
-	    
-    in
-	ensureTargets(trace, [])
-    end
-fun dropExtraJmps((j as CT.JUMP(_,[t]))::(l as CT.LABEL(t'))::r,x) =
-    if t = t' 
-    then dropExtraJmps(r, l::x)
-    else dropExtraJmps(r, l::j::x)
-  | dropExtraJmps([],x) = rev x
-  | dropExtraJmps(a::l,x) = dropExtraJmps(l,a::x)
-
-fun canonicalize stm =
-    let val ctree = cts stm
-	val b = blks ctree
-	val b' = linearize b
-	val b'' = cleanBlocks b'
-	val stms = map #stms b''
-	val lst = foldr (op @) [] stms
-    in
-	dropExtraJmps (lst,[])
-    end
 end
