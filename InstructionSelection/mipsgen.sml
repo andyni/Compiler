@@ -76,6 +76,9 @@ struct
                         src=[munchExp e1, munchExp e2], dst=[], jump=NONE})
 	| munchStm (Tr.MOVE(Tr.TEMP i, Tr.TEMP k)) =
 	    emit(A.MOVE{assem="addi `d0,`s0,0 \n", src=k, dst=i})
+	| munchStm (Tr.MOVE(Tr.TEMP i, Tr.CONST k)) = 
+	    emit(A.OPER{assem="addi `d0, r0, "^Int.toString(k)^" \n",
+            		src=[], dst=[i], jump=NONE})
 	| munchStm (Tr.MOVE(Tr.TEMP i, Tr.CALL(e,args))) =
 	    emit(A.OPER{assem="addi `d0, rv, 0 \n", src=[munchExp(Tr.CALL(e,args))], dst=[i], jump=NONE}) 
         | munchStm (Tr.MOVE(Tr.TEMP i, e2)) = 
@@ -176,9 +179,9 @@ struct
 
       	| munchExp(Tr.TEMP t) = t
 
-       (* | munchExp(Tr.NAME name) = 
-          result(fn r => emit(A.LABEL
-            {assem=Symbol.name name ^ ": ", lab=name}))*)
+        | munchExp(Tr.NAME name) = 
+          result(fn r => emit(A.OPER{assem="la `d0, "^(Symbol.name name)^" \n", dst=[r],
+          	    src=[], jump=NONE}))
 
       	| munchExp(Tr.CALL(Tr.NAME name,args)) =
             result(fn r => emit(A.OPER{assem="jal "^(Symbol.name(name))^" \n",
