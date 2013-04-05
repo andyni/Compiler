@@ -130,6 +130,25 @@ struct
             src=[munchExp e1,munchExp e2],
             dst=[r], jump=NONE}))
 
+        | munchExp(Tr.BINOP(Tr.AND,e1,e2)) =
+	  let val t = Temp.newlabel();
+	      val f = Temp.newlabel();
+	  in 
+          result(fn r => emit(A.OPER
+            {assem="addi `d0, r0, 1 \n beq `s0,r0,"^(Symbol.name t)^" \n bne `s1,r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, r0, 0 \n"^(Symbol.name f)^":",
+            src=[munchExp e1,munchExp e2],
+            dst=[r], jump=NONE}))
+	  end
+        | munchExp(Tr.BINOP(Tr.OR,e1,e2)) = 
+	  let val t = Temp.newlabel();
+	      val f = Temp.newlabel();
+	  in
+          result(fn r => emit(A.OPER
+            {assem="addi `d0, r0, 1 \n bne `s0,r0,"^(Symbol.name f)^" \n bne `s1,r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, r0, 0 \n"^(Symbol.name f)^":",
+            src=[munchExp e1,munchExp e2],
+            dst=[r], jump=NONE}))
+	  end
+
         (* CONSTANT *)
       	| munchExp(Tr.CONST i) =
       	  	result(fn r => emit(A.OPER
@@ -145,13 +164,13 @@ struct
 
       	| munchExp(Tr.BINOP(Tr.MUL,e1,e2)) = 
       	  	result(fn r => emit(A.OPER
-      			{assem="mult `d0, `s0,`s1 \n", 
+      			{assem="mult `s0,`s1 \n mflo `d0 \n", 
       			src=[munchExp e1,munchExp e2],
       			dst=[r], jump=NONE}))
 
       	| munchExp(Tr.BINOP(Tr.DIV,e1,e2)) =
       		result(fn r => emit(A.OPER
-      			{assem="div `d0, `s0,`s1 \n", 
+      			{assem="div `s0,`s1 \n mflo `d0 \n", 
       			src=[munchExp e1,munchExp e2],
       			dst=[r], jump=NONE}))
 
