@@ -19,6 +19,7 @@ sig
     val argregs : Temp.temp list
     val calleesaves : Temp.temp list
     val callersaves : Temp.temp list
+    val calldefs : Temp.temp list
     val exp : access -> Tree.exp -> Tree.exp
     val externalCall : string * Tree.exp list -> Tree.exp
     val procEntryExit1 : frame * Tree.stm -> Tree.stm
