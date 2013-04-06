@@ -211,18 +211,20 @@ struct
 	      (* Recursively checks each exp. Empty exps are of type UNIT *)
               | trexp(Absyn.SeqExp []) = {exp=(Tr.seqExp([], Tr.NIL)), ty=Types.UNIT}
 	      | trexp(Absyn.SeqExp l) =
-		let fun tycheckseq ([(exp2,pos)], {exp,ty}) = 
+		let fun tycheckseq ([(exp2,pos)]) = 
 			let val {exp=exp1, ty=type1} = trexp exp2
 			in
-			    {exp=Tr.seqExp(exp,exp1), ty=type1}
+			    {exp=[], finexp=exp1, ty=type1}
 			end
-		      | tycheckseq ((exp2,pos)::l, {exp,ty}) = 
+		      | tycheckseq ((exp2,pos)::l) = 
 		      	let val {exp=exp1, ty=type1} = trexp exp2
+			    val {exp=expl, finexp=finexp, ty=type3} = tycheckseq(l)
 			in
-			    tycheckseq(l,{exp=Tr.getStm exp1::exp,ty=type1})
+			    {exp=Tr.getStm exp1::expl,finexp=finexp,ty=type3}
 			end
+			val {exp=myseq,finexp=finexp, ty=seqty} = tycheckseq(l)
 		in
-		    tycheckseq(l,{exp=[], ty=Types.NIL})
+			{exp=Tr.seqExp(myseq,finexp), ty=seqty}
 		end
 
 	      (* Let Expression (calls transdec) *)
