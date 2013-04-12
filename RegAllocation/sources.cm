@@ -33,6 +33,7 @@ graph.sml
 flowgraph.sml
 makegraph.sig
 makegraph.sml
+liveness.sig
 
 
 $/smlnj-lib.cm
