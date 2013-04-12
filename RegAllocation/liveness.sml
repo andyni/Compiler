@@ -88,6 +88,7 @@ struct
 		val (tnode, gtemp) = foldr createTables 
 					   (Temp.Table.empty, G.Table.empty) tempslist
 					   
+		(* Gets interference node using temp *)
 		fun getNode (tempName) = case Temp.Table.look(tnode,tempName) of
 			       		    SOME(nodeName) => nodeName
 					  | NONE => ErrorMsg.impossible "Not in tnode."
@@ -116,11 +117,9 @@ struct
 		    end
 
 		val moves  = foldl (createMove) [] nodelist
-
-		fun nodeToTempList (a) = let val SOME(outT,outL) = G.Table.look(foutMap,a)
-		    			in
-					    outL
-					end	
+				  
+		(* Table mapping each flow graph node to the set of temps that are live-out at that node *)
+		fun nodeToTempList (a) = let val SOME(outT,outL) = G.Table.look(foutMap,a) in outL end	
 	    in
 		(IGRAPH{graph= interGraph, 
 			tnode = (fn t => case Temp.Table.look(tnode, t) of
@@ -133,6 +132,16 @@ struct
 	    end
 		
 	fun show (outstream, IGRAPH{graph=graph, tnode=tnode, 
-		                    gtemp=gtemp, moves=moves}) = ()
+		                    gtemp=gtemp, moves=moves}) = 
+	    let val nodelist = G.nodes graph
+		fun printInter(n) = let val a = G.adj(n)
+			    	    in
+					TextIO.output(outstream,G.nodename(n)^": ");
+					map (fn(ad)=>TextIO.output(outstream,G.nodename(ad)^", ")) a;
+					TextIO.output(outstream,"\n")
+				    end
+	    in
+		app (printInter) nodelist
+	    end
 end
     
