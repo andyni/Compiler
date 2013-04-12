@@ -25,18 +25,18 @@ struct
 					   
 		val nodelist = Graph.nodes control
 
+		(* Initializes live in and live out maps*)
 		val inMap = foldl (fn(n,currMap) =>
 		                      G.Table.enter(currMap,n,createLiveSet(SOME([]))))
 		                  G.Table.empty
-				  nodelist
-				  
+				  nodelist	  
 		val outMap = foldl (fn(n,currMap) =>
 		                       G.Table.enter(currMap,n,createLiveSet(SOME([]))))
 		                   G.Table.empty
 		                   nodelist
 	
-		   
-		fun runNode(n,(inMap,outMap,sameness)) =
+		(* Computation of liveness for one node *)	   
+		fun runNode (n,(inMap,outMap,sameness)) =
 		    let val SOME(inT,inL) = G.Table.look(inMap,n)     	 
 		    	val inSet = Set.addList(Set.empty,inL)
 			val SOME(outT,outL) = G.Table.look(outMap,n)
@@ -58,26 +58,26 @@ struct
 			val unchanged = if (Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN)))
 		    			then true else false
 			val unchanged2 = if (Set.numItems(Set.union(outSet,outN))=Set.numItems(Set.intersection(outSet,outN)))
-		    			 then true else false
-					   
-				       
+		    			 then true else false	       
 		    in
 			(inMap,outMap,sameness andalso unchanged andalso unchanged2)
 		    end
-		fun runAllNodes(inMap,outMap) =
+
+		fun runAllNodes (inMap,outMap) =
 		    let val (inM, outM, same) = foldl (runNode) (inMap,outMap,true) (nodelist)
 		    in
 			if (same) then	(inM,outM) else runAllNodes(inM,outM)
 		    end
+
 		val (finMap,foutMap) = runAllNodes(inMap, outMap)
-				
+						  
 		(* Create Interference Graph *)
 		val interGraph = G.newGraph()
-		val moves = []:(G.node*G.node) list
-
+		
 		val temps = foldr (fn(node, l) => valOf(G.Table.look(def, node)) @ l) [] nodelist
 		val tempslist = Set.listItems(Set.addList(Set.empty, temps))
-					     
+				
+		(* Creates tnode and gtemp *)	     
 		fun createTables (temp, (tnode, gtemp)) = 
 		    let val node = G.newNode(interGraph)
 		    in 
@@ -88,47 +88,60 @@ struct
 		val (tnode, gtemp) = foldr createTables 
 					   (Temp.Table.empty, G.Table.empty) tempslist
 					   
-			
-		fun edgeCreation(n,g) =
-		    	      let val SOME(defL) = G.Table.look(def,n)
-			          val SOME(outT,outL) = G.Table.look(foutMap,n)
-				  fun getNode(tempName) = let val SOME(nodeName) = Temp.Table.look(tnode,tempName)
-			       		     in
-						nodeName
-					     end
-				  fun makeEdges(ndef,grph) = foldl (fn(nde,grph)=>G.mk_edge{from=getNode(ndef),to=getNode(nde)}) grph outL
-			     in
-				foldl (makeEdges) g defL
-			     end
+		(* Gets interference node using temp *)
+		fun getNode (tempName) = case Temp.Table.look(tnode,tempName) of
+			       		    SOME(nodeName) => nodeName
+					  | NONE => ErrorMsg.impossible "Not in tnode."
+	
+		(* Adds interference edges into graph *)
+		fun edgeCreation (n,g) =
+		    let val SOME(defL) = G.Table.look(def,n)
+			val SOME(outT,outL) = G.Table.look(foutMap,n)
+			fun makeEdges(ndef,grph) = foldl (fn(nde,grph)=>G.mk_edge{from=getNode(ndef),to=getNode(nde)}) grph outL
+		    in
+			foldl (makeEdges) g defL
+		    end
 
 		val finGraph = foldl (fn(n,g)=> edgeCreation(n,g)) () nodelist
 
-		fun nodeToTempList(a) = let val SOME(outT,outL) = G.Table.look(foutMap,a)
-		    		in
-					outL
-				end	
-		in
-			(IGRAPH{graph= interGraph, 
-				    tnode = (fn t => case Temp.Table.look(tnode, t) of
-				    					    SOME node => node
-				    					  | NONE => ErrorMsg.impossible ("Temp not in table.")),
-				    gtemp = (fn n => case G.Table.look(gtemp, n) of 
-				    						SOME temp => temp 
-				    					  | NONE => ErrorMsg.impossible ("Node not in table.")),
-				    moves = moves}, nodeToTempList
-				     )
-		end
+		(* Creates move list *)
+		fun createMove (node, moves) = 
+		    let val SOME(nodedef) = G.Table.look(def, node)
+			val SOME(nodeuse) = G.Table.look(use, node)
+			val move = case G.Table.look(ismove, node) of
+				       SOME(move) => move
+				     | NONE => false
+		    in
+			if move then (getNode(List.nth(nodedef, 0)), getNode(List.nth(nodeuse, 0)))::moves 
+			else moves
+		    end
 
+		val moves  = foldl (createMove) [] nodelist
+				  
+		(* Table mapping each flow graph node to the set of temps that are live-out at that node *)
+		fun nodeToTempList (a) = let val SOME(outT,outL) = G.Table.look(foutMap,a) in outL end	
+	    in
+		(IGRAPH{graph= interGraph, 
+			tnode = (fn t => case Temp.Table.look(tnode, t) of
+				    	     SOME node => node
+				    	   | NONE => ErrorMsg.impossible ("Temp not in table.")),
+			gtemp = (fn n => case G.Table.look(gtemp, n) of 
+				    	     SOME temp => temp 
+				    	   | NONE => ErrorMsg.impossible ("Node not in table.")),
+			moves = moves}, nodeToTempList)
+	    end
+		
 	fun show (outstream, IGRAPH{graph=graph, tnode=tnode, 
-		                        gtemp=gtemp, moves=moves}) = 
-			let val nodelist = G.nodes graph
-			    fun printInter(n) = let val a = G.adj(n)
-			    		      in
-					         TextIO.output(outstream,G.nodename(n)^": ");
-						 map (fn(ad)=>TextIO.output(outstream,G.nodename(ad)^", ")) a;
-					         TextIO.output(outstream,"\n")
-					      end
-			    in
-				app (printInter) nodelist
-			    end
+		                    gtemp=gtemp, moves=moves}) = 
+	    let val nodelist = G.nodes graph
+		fun printInter(n) = let val a = G.adj(n)
+			    	    in
+					TextIO.output(outstream,G.nodename(n)^": ");
+					map (fn(ad)=>TextIO.output(outstream,G.nodename(ad)^", ")) a;
+					TextIO.output(outstream,"\n")
+				    end
+	    in
+		app (printInter) nodelist
+	    end
 end
+    
