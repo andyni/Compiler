@@ -14,6 +14,19 @@ struct
 		                               use=use, ismove=ismove}) =
 		let 
 
+			val temps = foldr (fn(node, l) => valOf(G.Table.look(def, node)) @ l) [] nodelist
+			val tempslist = Set.listItems(Set.addList(Set.empty, temps))
+
+			fun createTables (temp, tnode, gtemp) = 
+				let 
+					val node = G.newNode(graph)
+				in 
+					(Temp.Table.enter(tnode, temp, node),
+					 G.Table.enter(gtemp, node, temp))
+				end
+
+			val (tnode, gtemp) = foldr createTables 
+								 (Temp.Table.empty, G.Table.empty) tempslist
 		in
 			(IGRAPH{graph= , 
 				    tnode = , 
