@@ -120,5 +120,15 @@ struct
 		end
 
 	fun show (outstream, IGRAPH{graph=graph, tnode=tnode, 
-		                        gtemp=gtemp, moves=moves}) = ()
+		                        gtemp=gtemp, moves=moves}) = 
+			let val nodelist = G.nodes graph
+			    fun printInter(n) = let val a = G.adj(n)
+			    		      in
+					         TextIO.output(outstream,G.nodename(n)^": ");
+						 map (fn(ad)=>TextIO.output(outstream,G.nodename(ad)^", ")) a;
+					         TextIO.output(outstream,"\n")
+					      end
+			    in
+				app (printInter) nodelist
+			    end
 end
