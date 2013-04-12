@@ -7,9 +7,9 @@ struct
 			   gtemp: Graph.node -> Temp.temp,
 			   moves: (Graph.node * Graph.node) list}
 
-	type liveSet = unit Temp.Table.table * temp list
+	type liveSet = unit Temp.Table.table * Temp.temp list
 	type liveMap = liveSet Flow.Graph.Table.table
-        structure Set = ListSetFn(type key = int,
+        structure Set = ListSetFn(type ord_key = int
 		      		  val compare = Int.compare)
 				 
 
@@ -36,25 +36,25 @@ struct
 		                   nodelist
 	
 		   
-		fun runNode((inMap,outMap,sameness),n) =
+		fun runNode(n,(inMap,outMap,sameness)) =
 		    let val SOME(inT,inL) = G.Table.look(inMap,n)     	 
 		    	val inSet = Set.addList(Set.empty,inL)
 			val SOME(outT,outL) = G.Table.look(outMap,n)
 			val outSet = Set.addList(Set.empty, outL)
-			val SOME(useL) = G.Table.look(uses,n)
+			val SOME(useL) = G.Table.look(use,n)
 			val useSet = Set.addList(Set.empty,useL)
 			val SOME(defL) = G.Table.look(def,n)
 			val defSet = Set.addList(Set.empty,defL)
 			val inN = Set.union(useSet,Set.difference(outSet,defSet))
-			val newInMap =	G.Table.enter(inMap,createLiveSet(Set.listItems inN))
+			val newInMap =	G.Table.enter(inMap,n,createLiveSet(SOME(Set.listItems inN)))
 			fun createOutSet(succ,outS) =
 		    	    let val SOME(succT,succL) = G.Table.look(inMap,succ)     	 
 	               		val succSet = Set.addList(Set.empty,succL)
 			    in
 				Set.union(outS,succSet)
 			    end
-			val outN = foldl createOutSet	Set.empty G.succ(n)
-			val newOutMap =	G.Table.enter(outMap,createLiveSet(Set.listItems outN))
+			val outN = foldl (createOutSet) Set.empty (G.succ(n))
+			val newOutMap =	G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
 			val unchanged = if (Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN)))
 		    			then true else false
 			val unchanged2 = if (Set.numItems(Set.union(outSet,outN))=Set.numItems(Set.intersection(outSet,outN)))
@@ -65,8 +65,7 @@ struct
 			(inMap,outMap,sameness andalso unchanged andalso unchanged2)
 		    end
 		fun runAllNodes(inMap,outMap) =
-		    let val (inM, outM, same) = foldl
-						    runNode (inMap,outMap,true) nodelist
+		    let val (inM, outM, same) = foldl (runNode) (inMap,outMap,true) (nodelist)
 		    in
 			if (same) then	(inM,outM) else runAllNodes(inM,outM)
 		    end
@@ -74,12 +73,12 @@ struct
 				
 		(* Create Interference Graph *)
 		val interGraph = G.newGraph()
-		val moves = []
+		val moves = []:(G.node*G.node) list
 
 		val temps = foldr (fn(node, l) => valOf(G.Table.look(def, node)) @ l) [] nodelist
 		val tempslist = Set.listItems(Set.addList(Set.empty, temps))
 					     
-		fun createTables (temp, tnode, gtemp) = 
+		fun createTables (temp, (tnode, gtemp)) = 
 		    let val node = G.newNode(interGraph)
 		    in 
 			(Temp.Table.enter(tnode, temp, node),
@@ -91,22 +90,32 @@ struct
 					   
 			
 		fun edgeCreation(n,g) =
-		    	      let val SOME(outT,outL) = G.Table.look(foutMap)
-			      in
-				foldl (fn(nde,grph)=>G.mk_edge{from=n,to=nde}) g outL
-			      end
+		    	      let val SOME(defL) = G.Table.look(def,n)
+			          val SOME(outT,outL) = G.Table.look(foutMap,n)
+				  fun getNode(tempName) = let val SOME(nodeName) = Temp.Table.look(tnode,tempName)
+			       		     in
+						nodeName
+					     end
+				  fun makeEdges(ndef,grph) = foldl (fn(nde,grph)=>G.mk_edge{from=getNode(ndef),to=getNode(nde)}) grph outL
+			     in
+				foldl (makeEdges) g defL
+			     end
 
-		val finGraph = foldl (fn(n,g)=> edgeCreation(n,g)) interGraph nodeList
+		val finGraph = foldl (fn(n,g)=> edgeCreation(n,g)) () nodelist
 
+		fun nodeToTempList(a) = let val SOME(outT,outL) = G.Table.look(foutMap,a)
+		    		in
+					outL
+				end	
 		in
 			(IGRAPH{graph= interGraph, 
-				    tnode = fn t => case Temp.Table.look(tnode, t) of
-				    						SOME node => node
-				    					  | NONE => ErrorMsg.impossible ("Temp not in table.") 
-				    gtemp = fn n => case G.Table.look(gtemp, n) of 
+				    tnode = (fn t => case Temp.Table.look(tnode, t) of
+				    					    SOME node => node
+				    					  | NONE => ErrorMsg.impossible ("Temp not in table.")),
+				    gtemp = (fn n => case G.Table.look(gtemp, n) of 
 				    						SOME temp => temp 
-				    					  | NONE => ErrorMsg.impossible ("Node not in table.")
-				    move = moves},
+				    					  | NONE => ErrorMsg.impossible ("Node not in table.")),
+				    moves = moves}, nodeToTempList
 				     )
 		end
 
