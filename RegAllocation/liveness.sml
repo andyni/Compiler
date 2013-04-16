@@ -53,7 +53,7 @@ struct
 			    in
 				Set.union(outS,succSet)
 			    end
-			val outN = foldl (createOutSet) Set.empty (G.succ(n))
+			val outN = foldl (createOutSet)	Set.empty (G.succ(n))
 			val newOutMap =G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
 
 			val unchanged = if (Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN)))
@@ -75,8 +75,13 @@ struct
 		(* Create Interference Graph *)
 		val interGraph = G.newGraph()
 		
-		val temps = foldr (fn(node, l) => valOf(G.Table.look(def, node)) @ l) [] nodelist
-		val tempslist = Set.listItems(Set.addList(Set.empty, temps))
+
+
+
+
+		val temps = foldr (fn(node, l) => valOf(G.Table.look(def,node)) @ l) [] nodelist
+		val tempslist = Set.listItems(Set.addList(Set.empty,temps))
+
 				
 		(* Creates tnode and gtemp *)	     
 		fun createTables (temp, (tnode, gtemp)) = 
@@ -89,23 +94,26 @@ struct
 		val (tnode, gtemp) = foldr createTables 
 					   (Temp.Table.empty, G.Table.empty) tempslist
 					   
+
 		(* Gets interference node using temp *)
 		fun getNode (tempName) = case Temp.Table.look(tnode,tempName) of
 			       		    SOME(nodeName) => nodeName
-					  | NONE => ErrorMsg.impossible "Not in tnode."
+					  | NONE => ErrorMsg.impossible ("Not in tnode "^Temp.makestring(tempName))
 	
 		(* Adds interference edges into graph *)
-		fun edgeCreation (n,g) =
+		fun edgeCreation (n) =
 		    let val SOME(defL) = G.Table.look(def,n)
 			val SOME(outT,outL) = G.Table.look(foutMap,n)
-			fun makeEdges(ndef,grph) = (print "    Who gonna make dem edges? \n";
-			    foldl (fn(nde,grph)=>(print "Makin dem edges \n";G.mk_edge{from=getNode(ndef),to=getNode(nde)})) grph outL)
+			fun makeEdges(ndef) = 
+			    map
+		(fn(nde)=>
+			if (nde=ndef) then () else (G.mk_edge{from=getNode(ndef),to=getNode(nde)})) outL
 		    in
-		        print "When we gonna make those edges? \n";
-			foldl (makeEdges) g defL
+			map (makeEdges) defL
 		    end
 
-		val finGraph = foldl (fn(n,g)=> edgeCreation(n,g)) () nodelist
+		val finGraph = map (fn(n)=> edgeCreation(n)) nodelist
+
 
 		(* Creates move list *)
 		fun createMove (node, moves) = 
@@ -137,10 +145,10 @@ struct
 	fun show (outstream, IGRAPH{graph=graph, tnode=tnode, 
 		                    gtemp=gtemp, moves=moves}) = 
 	    let val nodelist = G.nodes graph
-		fun printInter(n) = let val a = G.adj(n)
+		fun printInter(n) = let val a = G.pred(n) @ G.succ(n)
 			    	    in
-					TextIO.output(outstream,G.nodename(n)^": ");
-					map (fn(ad)=>TextIO.output(outstream,G.nodename(ad)^", ")) a;
+					TextIO.output(outstream,Temp.makestring(gtemp(n))^": ");
+					map (fn(ad)=>TextIO.output(outstream,Temp.makestring(gtemp(ad))^", ")) a;
 					TextIO.output(outstream,"\n")
 				    end
 	    in

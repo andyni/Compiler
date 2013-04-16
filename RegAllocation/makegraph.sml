@@ -18,7 +18,12 @@ struct
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
 							   (defs, uses, ismoves, labeltonode)) =
-			(print (G.nodename(node)^": " ^assem);
+			(print (G.nodename(node)^": " ^assem^"Destinations: ");
+			map (fn(k) => print (Temp.makestring(k)^",")) dst;
+			print "\n";
+			print "Sources: ";
+			map (fn(k) => print (Temp.makestring(k)^",")) src;
+			print "\n";
 			(G.Table.enter(defs, node, dst),
 			 G.Table.enter(uses, node, src),
 			 G.Table.enter(ismoves, node, false),
@@ -33,6 +38,8 @@ struct
 		  | parseInstructions ((A.MOVE{assem=assem, dst=dst, src=src}, node), 
 		  					   (defs, uses, ismoves, labeltonode)) =
 			(print (G.nodename(node)^": " ^assem);
+			print("Destinations: "^Temp.makestring(dst)^"\n");
+			print ("Sources: "^Temp.makestring(src)^"\n");
 			(G.Table.enter(defs, node, [dst]),
 			 G.Table.enter(uses, node, [src]),
 			 G.Table.enter(ismoves, node, true),

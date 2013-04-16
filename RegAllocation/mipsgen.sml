@@ -85,7 +85,8 @@ struct
             		src=[], dst=[i], jump=NONE})
 
 	      | munchStm (Tr.MOVE(Tr.TEMP i, Tr.CALL(e,args))) =
-	          emit(A.OPER{assem="addi `d0, rv, 0 \n", src=[munchExp(Tr.CALL(e,args))], dst=[i], jump=NONE}) 
+	          (munchExp(Tr.CALL(e,args));
+	          emit(A.OPER{assem="addi `d0, rv, 0 \n", src=[], dst=[i], jump=NONE})) 
         
         | munchStm (Tr.MOVE(Tr.TEMP i, e2)) = 
             emit(A.OPER{assem="addi `d0,`s0,0 \n",

@@ -29,7 +29,7 @@ structure F : FRAME = MipsFrame
 
    fun compile filename = 
        let val _ = Translate.resetfraglist();
-       	   val _ = Temp.reset();
+           val _ = Temp.reset();
            val absyn = Parse.parse filename
            val frags = (FindEscape.findEscape absyn; Semant.transProg absyn; Translate.getResult())
         in 
