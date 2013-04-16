@@ -54,13 +54,14 @@ struct
 				Set.union(outS,succSet)
 			    end
 			val outN = foldl (createOutSet) Set.empty (G.succ(n))
-			val newOutMap =	G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
+			val newOutMap =G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
+
 			val unchanged = if (Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN)))
 		    			then true else false
 			val unchanged2 = if (Set.numItems(Set.union(outSet,outN))=Set.numItems(Set.intersection(outSet,outN)))
 		    			 then true else false	       
 		    in
-			(inMap,outMap,sameness andalso unchanged andalso unchanged2)
+			(newInMap,newOutMap,sameness andalso unchanged andalso unchanged2)
 		    end
 
 		fun runAllNodes (inMap,outMap) =
@@ -97,8 +98,10 @@ struct
 		fun edgeCreation (n,g) =
 		    let val SOME(defL) = G.Table.look(def,n)
 			val SOME(outT,outL) = G.Table.look(foutMap,n)
-			fun makeEdges(ndef,grph) = foldl (fn(nde,grph)=>G.mk_edge{from=getNode(ndef),to=getNode(nde)}) grph outL
+			fun makeEdges(ndef,grph) = (print "    Who gonna make dem edges? \n";
+			    foldl (fn(nde,grph)=>(print "Makin dem edges \n";G.mk_edge{from=getNode(ndef),to=getNode(nde)})) grph outL)
 		    in
+		        print "When we gonna make those edges? \n";
 			foldl (makeEdges) g defL
 		    end
 

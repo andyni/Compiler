@@ -9,9 +9,15 @@ structure F : FRAME = MipsFrame
          val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
          val stms'' = Tree.LABEL(MipsFrame.name(frame))::stms'
 	 val instrs =   List.concat(map (MipsGen.codegen frame) stms'') 
+	 val (ginstr,l) =  Makegraph.instrs2graph(instrs)
+	 val bleh = print "INSTRUCTION GRAPH MADE"
+	 val (intgraph,extl) = Liveness.interferenceGraph(ginstr)
+	 val bleh2 = print "SHIT'S GETTIN REAL NOW"
          val format0 = Assem.format(Temp.makestring)
+	 val bleh3 = "OMFGDFAKLD:FJA:SFJKL:"
       in  
-      	  map (fn i => (TextIO.output(out,format0 i))) instrs; TextIO.output(out,"\n"); () 
+      	  map (fn i => (TextIO.output(out,format0 i))) instrs; TextIO.output(out,"\n");
+	  Liveness.show(out,intgraph)
       end
     | emitproc out (F.STRING(lab,s)) = TextIO.output(out,F.string(lab,s))
 
