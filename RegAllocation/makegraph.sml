@@ -18,33 +18,39 @@ struct
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
 							   (defs, uses, ismoves, labeltonode)) =
+			(print (G.nodename(node)^": " ^assem);
 			(G.Table.enter(defs, node, dst),
 			 G.Table.enter(uses, node, src),
 			 G.Table.enter(ismoves, node, false),
-			 labeltonode)				   
+			 labeltonode))				   
 		  | parseInstructions ((A.LABEL{assem=assem, lab=lab}, node), 
-		                       (defs, uses, ismoves, labeltonode)) =
+		                       (defs, uses, ismoves, labeltonode))=
+			(print (G.nodename(node)^": " ^assem);
 			(G.Table.enter(defs, node, []),
 			 G.Table.enter(uses, node, []),
 			 G.Table.enter(ismoves, node, false),
-			 S.enter(labeltonode, lab, node))		  
+			 S.enter(labeltonode, lab, node)))		  
 		  | parseInstructions ((A.MOVE{assem=assem, dst=dst, src=src}, node), 
 		  					   (defs, uses, ismoves, labeltonode)) =
+			(print (G.nodename(node)^": " ^assem);
 			(G.Table.enter(defs, node, [dst]),
 			 G.Table.enter(uses, node, [src]),
 			 G.Table.enter(ismoves, node, true),
-			 labeltonode)
+			 labeltonode))
 
 		val (defs, uses, ismoves, labeltonode) = foldl parseInstructions 
 			(G.Table.empty, G.Table.empty, G.Table.empty, S.empty) 
 			instrTuple
 
 		(* Creates edge for all non-jump instructions *)
-		fun connectEdges ((instr1, node1)::l) = 
+		fun connectEdges (a::[]) = ()
+		| connectEdges ((instr1, node1)::l) = 
 		    let val (instr2, node2) = hd(l) in
-		    	G.mk_edge({from= node1, to=node2})
+		    	print ("Making edge from "^G.nodename(node1)^ " to "^G.nodename(node2)^"\n");
+		    	G.mk_edge({from= node1, to=node2});
+			connectEdges(l)
 		    end
-		  | connectEdges (a) = ()
+		  
 
 		val _ = connectEdges instrTuple  
 
