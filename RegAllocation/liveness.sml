@@ -1,4 +1,4 @@
-structure liveness : LIVENESS = 
+structure Liveness : LIVENESS = 
 struct
 	structure G = Flow.Graph
 	datatype igraph = 
