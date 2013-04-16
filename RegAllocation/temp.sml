@@ -20,7 +20,7 @@ struct
     val namedlabel = Symbol.symbol
     fun resetlabs() = labs:=0
 end
-    fun reset() = (resetlabs(); temps:=0)
+    fun reset() = (resetlabs(); temps:=100)
 
 
 end
