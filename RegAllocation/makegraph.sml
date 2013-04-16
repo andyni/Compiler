@@ -7,8 +7,13 @@ struct
 	fun instrs2graph instrs = 
 	let 
 		val graph = G.newGraph()
-		val nodelist = map (fn _ => G.newNode(graph)) instrs
-		val instrTuple = ListPair.zip (instrs, nodelist)
+		val namedlabels = map (fn(s)=>A.LABEL{assem="",lab=Temp.namedlabel s}) ["print",
+	"flush", "initArray", "malloc", "getchar", "ord", "chr", "size",
+	"substring", "concat", "not", "exit"]
+		val modInstr = namedlabels @ instrs
+		val nodelist = map (fn _ => G.newNode(graph)) modInstr
+		val instrTuple = ListPair.zip (modInstr, nodelist)
+	
 
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
@@ -46,7 +51,7 @@ struct
 		fun getNode label = 
 			case S.look(labeltonode, label) of
 				SOME(node) => node
-		      | NONE => ErrorMsg.impossible "Cannot find label."
+		      | NONE => ErrorMsg.impossible ("Cannot find label "^Symbol.name(label))
 
 		(* Creates all jump edges *)
 		fun connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node) =
