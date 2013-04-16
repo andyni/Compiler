@@ -194,9 +194,13 @@ struct
 				 
   (* Translates function calls to IR *)
   fun funcall (args,label,level,mylevel) = 
-      let val InnerLevel({parent=topParent, frame=_, id=_}) = mylevel
+      let val args' = map unEx args
       in
-	  Ex(T.CALL(T.NAME label, staticLink(topParent,level)::(map unEx args)))
+        case mylevel of
+          InnerLevel({parent=topParent, frame=_, id=_}) =>
+            Ex(T.CALL(T.NAME label, staticLink(topParent,level)::args'))
+        | Outermost => 
+	          Ex(F.externalCall(Symbol.name label, args'))
       end
 
   (* Translates break to IR *)	  
