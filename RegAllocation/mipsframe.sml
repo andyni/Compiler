@@ -21,7 +21,7 @@ val RA = Temp.newtemp()
 (* mapping from special temps to their names, nonspecial temps to NONE *)
 val tempMap = foldr (fn ((temp, name), table) => Temp.Table.enter(table, temp, name)) 
                     Temp.Table.empty 
-                    [(ZERO, "$zero"), (SP, "$sp"), (FP, "$fp"), (RV, "rv"), (RA, "$ra")]
+                    [(ZERO, "$zero"), (SP, "$sp"), (FP, "$fp"), (RV, "$rv"), (RA, "$ra")]
 
 (* displays assembly language prior to register allocation *)
 fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
