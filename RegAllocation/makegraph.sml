@@ -51,13 +51,10 @@ struct
 
 		(* Creates edge for all non-jump instructions *)
 		fun connectEdges (a::[]) = ()
-		| connectEdges ((instr1, node1)::l) = 
+		  | connectEdges ((instr1, node1)::l) = 
 		    let val (instr2, node2) = hd(l) in
-		    	print ("Making edge from "^G.nodename(node1)^ " to "^G.nodename(node2)^"\n");
-		    	G.mk_edge({from= node1, to=node2});
-			connectEdges(l)
+		    	G.mk_edge({from= node1, to=node2}); connectEdges(l)
 		    end
-		  
 
 		val _ = connectEdges instrTuple  
 
