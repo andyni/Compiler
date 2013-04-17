@@ -19,25 +19,30 @@ val FP = Temp.newtemp()
 val RV = Temp.newtemp()	 
 val RA = Temp.newtemp()
 
+fun createTempList (0, l) = l
+  | createTempList (length, l) = createTempList(length-1, Temp.newtemp()::l) 
+
+val specialregs = [ZERO, SP, FP, RV, RA]
+val argregs = createTempList(4,[])
+val calleesaves = createTempList(8,[])
+val callersaves = createTempList(10,[])
+val calldefs = callersaves @ [RA, RV]
+
 (* mapping from special temps to their names, nonspecial temps to NONE *)
 val tempMap = foldr (fn ((temp, name), table) => Temp.Table.enter(table, temp, name)) 
                     Temp.Table.empty 
-                    [(ZERO, "$zero"), (SP, "$sp"), (FP, "$fp"), (RV, "$rv"), (RA, "$ra")]
+                    [(ZERO, "$zero"), (SP, "$sp"), (FP, "$fp"), (RV, "$rv"), (RA, "$ra"),
+                     (List.nth(argregs,0), "$a0"), (List.nth(argregs,1), "$a1"), (List.nth(argregs,2), "$a2"), (List.nth(argregs,3), "$a3"),
+                     (List.nth(calleesaves,0), "$s0"), (List.nth(calleesaves,1), "$s1"), (List.nth(calleesaves,2), "$s2"), (List.nth(calleesaves,3), "$s3"), (List.nth(calleesaves,4), "$s4"), (List.nth(calleesaves,5), "$s5"), (List.nth(calleesaves,6), "$s6"), (List.nth(calleesaves,7), "$s7"),
+                     (List.nth(callersaves,0), "$t0"), (List.nth(callersaves,1), "$t1"), (List.nth(callersaves,2), "$t2"), (List.nth(callersaves,3), "$t3"), (List.nth(callersaves,4), "$t4"), (List.nth(callersaves,5), "$t5"), (List.nth(callersaves,6), "$t6"), (List.nth(callersaves,7), "$t7"), (List.nth(callersaves,8), "$t8"), (List.nth(callersaves,9), "$t9")]
 
 (* displays assembly language prior to register allocation *)
 fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 							of SOME(register) => register
 							 | NONE => Temp.makestring(temp)
 
-val specialregs = [ZERO, SP, FP, RV, RA]
-
-fun createTempList (0, l) = l
-  | createTempList (length, l) = createTempList(length-1, Temp.newtemp()::l) 
-
-val argregs = createTempList(4,[])
-val calleesaves = createTempList(8,[])
-val callersaves = createTempList(10,[])
-val calldefs = callersaves @ [RA, RV]
+(* list of all register names *)
+val registers = map tempToString (specialregs @ argregs @ calleesaves @ callersaves)
 
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
 

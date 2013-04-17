@@ -19,12 +19,12 @@ struct
 			val (interferencegraph, liveouts) = L.interferenceGraph(flowgraph)
 
 			val Flow.FGRAPH {control=_, def=def, use=use, ismove=_} = flowgraph
-			val L.IGRAPH {graph=_, tnode=_, gtemp=gtemp, movevs=_} = interferencegraph
+			val L.IGRAPH {graph=_, tnode=_, gtemp=gtemp, moves=_} = interferencegraph
 			fun spillCost node = 
 				let val temp = gtemp(node)
 					fun countUsesDefs n = let 
 						val SOME(defL) = Graph.Table.look (def, node)
-						val SOME(useL) = Graph.Table.look (use, ,node)
+						val SOME(useL) = Graph.Table.look (use, node)
 						val d = if (List.exists (fn x => (x=temp)) defL) then 1 else 0
 						val u = if (List.exists (fn x => (x=temp)) useL) then 1 else 0
 						val sum = d + u

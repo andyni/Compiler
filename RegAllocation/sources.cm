@@ -35,6 +35,7 @@ makegraph.sig
 makegraph.sml
 liveness.sig
 liveness.sml
+color.sml
 
 $/smlnj-lib.cm
 $/ml-yacc-lib.cm
