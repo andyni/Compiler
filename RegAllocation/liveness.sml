@@ -56,10 +56,8 @@ struct
 			val outN = foldl (createOutSet)	Set.empty (G.succ(n))
 			val newOutMap =G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
 
-			val unchanged = if (Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN)))
-		    			then true else false
-			val unchanged2 = if (Set.numItems(Set.union(outSet,outN))=Set.numItems(Set.intersection(outSet,outN)))
-		    			 then true else false	       
+			val unchanged = Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN))
+			val unchanged2 = Set.numItems(Set.union(outSet,outN))=Set.numItems(Set.intersection(outSet,outN))
 		    in
 			(newInMap,newOutMap,sameness andalso unchanged andalso unchanged2)
 		    end
@@ -74,11 +72,6 @@ struct
 						  
 		(* Create Interference Graph *)
 		val interGraph = G.newGraph()
-		
-
-
-
-
 		val temps = foldr (fn(node, l) => valOf(G.Table.look(def,node)) @ l) [] nodelist
 		val tempslist = Set.listItems(Set.addList(Set.empty,temps))
 
