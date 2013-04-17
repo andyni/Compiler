@@ -9,14 +9,17 @@ sig
 		     -> allocation * Temp.temp list
 end
 
-structure Color :> COLOR
-in
+structure Color : COLOR =
+struct
+	structure G = Graph
+	structure Frame = MipsFrame
+	type allocation = MipsFrame.register Temp.Table.table
 	val K = 18
 	fun color{interference, initial, spillCost, registers} = 
-	    let val {graph,tnode,gtemp,moves} = interference
+	    let val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
 	    	val nodelist = G.nodes(graph)
 	    	fun makeWorkList() =
-		    let fun addtolist (node, (list1,list2)) = if (length(G.adj(node))<K) then node::list1 else node::list2
+		    let fun addtolist (node, (list1,list2)) = if (length(G.adj(node))<K) then (node::list1,list2) else (list1,node::list2)
 			in
 				foldl (addtolist) ([],[]) nodelist
 			end
@@ -29,15 +32,20 @@ in
 
 		val degreeTable = foldl (makeDegreeTable) G.Table.empty nodelist
 
-		fun simplifyNode(node, selectStack, degreeTable, simplifyWorklist, spillWorklist)
-		    let val nsimplify' = filter (fn(x)=>x<>node) simplifyWorklist
+
+		fun removeElem(list,item) =
+		    List.filter (fn(x)=>(gtemp(x)<gtemp(item) orelse gtemp(x)>gtemp(item))) list
+
+		fun simplifyNode(node, selectStack, degreeTable, simplifyWorklist, spillWorklist)=
+		    let val neighbors = G.adj(node)
+		        val nsimplify' = removeElem(simplifyWorklist,node)
 			val nselect = node::selectStack
-		    	val neighbors = G.adj(node)
-		    	fun decrementdegree(n,(degreeTable,simplifyWorklist,spillWorklist))
+
+		    	fun decrementdegree(n,(degreeTable,simplifyWorklist,spillWorklist))=
 			    let val SOME(degree) =  G.Table.look(degreeTable,n)
-			    	upDegree =  G.Table.enter(degreeTable,n,degree-1)
-				simplify = if (degree=K) then n::simplifyWorklist else simplifyWorklist
-				spill = if (degree=K) then filter (fn (x)=> x <> n) spillWorklist  else spillWorklist			    	
+			    	val upDegree =  G.Table.enter(degreeTable,n,degree-1)
+				val simplify = if (degree=K) then n::simplifyWorklist else simplifyWorklist
+				val spill = if (degree=K) then removeElem(spillWorklist,n)  else spillWorklist			    	
 				in
 					(upDegree,simplify,spill)
 				end
@@ -46,19 +54,19 @@ in
 				(nselect,ndegree,nsimplify,nspill)
 			end
 
-		fun spillNode(selectStack, degreeTable, simplifyWorklist,n::spillWorklist)
+		fun spillNode(selectStack, degreeTable, simplifyWorklist,node::spillWorklist)=
 		    let fun bestnode(n,bestn) = if (spillCost(n)>spillCost(bestn)) then n else bestn		    				
-		    	val bestN = foldl (bestnode) n spillWorklist
-			interspill = n::spillWorklist
-			nspill = filter (fn (x)=> x <> n) interspill
+		    	val bestN = foldl (bestnode) node spillWorklist
+			val interspill = node::spillWorklist
+			val nspill = removeElem(interspill,bestN)
 			in
-				simplify(bestN, degreeTable, simplifyWorklist, nspill)
+				simplifyNode(bestN, selectStack, degreeTable, simplifyWorklist, nspill)
 			end
 
 		fun handleSimplification(selectStack, degreeTable, [], []) = selectStack 
-		    handleSimplification(selectStack, degreeTable, [], spillWorklist) =
+		    | handleSimplification(selectStack, degreeTable, [], spillWorklist) =
 						      handleSimplification(spillNode(selectStack, degreeTable, simplifyWorklist, spillWorklist))
-		    handleSimplification(selectStack, degreeTable, n::simplifyWorklist, spillWorklist) =
+		    | handleSimplification(selectStack, degreeTable, n::simplifyWorklist, spillWorklist) =
 		    				      handleSimplification(simplifyNode(n, selectStack, degreeTable, simplifyWorklist, spillWorklist))
 
 		val selectStack = handleSimplification([], degreeTable, simplifyWorklist, spillWorklist)
@@ -69,22 +77,22 @@ in
 			    	let val col = Temp.Table.look(colorTable,gtemp(nbor))
 				    val pcol = Temp.Table.look(initial,gtemp(nbor))
 				    val isPcol = case pcol of NONE => true
-					     	    	    | SOME(r) => String.compare(r,reg)<>EQUAL 
+					     	    	    | SOME(r) => not (Frame.regsEqual(reg,r))
 				in
 					case col of NONE => isPcol
-					     	 |  SOME(r) => String.compare(r,reg)<>EQUAL 
+					     	 |  SOME(r) => not (Frame.regsEqual(reg,r))
 		    		end
-		    	fun availReg(nbor,avail) = filter (fn (a) => compColor(nbor,a)) avail
+		    	fun availReg(nbor,avail) = List.filter (fn (a) => compColor(nbor,a)) avail
 			val availRegs = foldl (availReg) registers neighbors
-			nspill = case availRegs of [] => gtemp(node)::spillNodes
+			val nspill = case availRegs of [] => gtemp(node)::spillNodes
 			       	      		|  _  => spillNodes
-			ncolor = case availRegs of [] => colorTable
+			val ncolor = case availRegs of [] => colorTable
 			       	      		|  a::l => Temp.Table.enter(colorTable,gtemp(node),a)
 		    	in
 				(ncolor, nspill)
 			end
 
-		val (colorTable, spillTable) = foldl (assignColor) (Temp.Table.empty, []) selectStack
+		val (colorTable, spillTable) = foldl (assignColors) (Temp.Table.empty, []) selectStack
 
 		in
 			(colorTable, spillTable)

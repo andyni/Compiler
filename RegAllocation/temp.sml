@@ -5,7 +5,7 @@ struct
     val temps = ref 100
     fun newtemp() = let val t = !temps in temps := t+1; t end
 
-    structure Table = IntMapTable(type key = int
+    structure Table = IntMapTable(type key = temp
 				  fun getInt n = n)
 
     fun makestring t = "t" ^ Int.toString t

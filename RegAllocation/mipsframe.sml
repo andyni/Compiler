@@ -11,6 +11,7 @@ datatype frag = PROC of {body: Tree.stm, frame: frame}
 			       
 val wordSize = 4
 
+fun regsEqual(reg1, reg2) = String.compare(reg1,reg2)=EQUAL
 
 val ZERO = Temp.newtemp()
 val SP = Temp.newtemp()

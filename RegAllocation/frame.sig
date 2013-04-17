@@ -7,6 +7,7 @@ sig
 		  | STRING of Temp.label * string
     val newFrame : {name: Temp.label, formals: bool list} -> frame
     val name : frame -> Temp.label
+    val regsEqual : register*register->bool
     val forms : frame -> access list
     val allocLocal : frame -> bool -> access
     val string : Temp.label * string -> string
