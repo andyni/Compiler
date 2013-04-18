@@ -11,7 +11,7 @@ structure F : FRAME = MipsFrame
 	       val instrs =   List.concat(map (MipsGen.codegen frame) stms'') 
 	       val (ginstr,l) =  Makegraph.instrs2graph(instrs)
 	       val (intgraph,extl) = Liveness.interferenceGraph(ginstr)
-	       val _ = (print "Interference Graph: \n"; Liveness.show(out,intgraph))
+	       val _ = (print "Interference Graph: \n"; Liveness.show(TextIO.stdOut,intgraph))
          val (instrs', allocation) = RegAlloc.alloc (instrs, frame)
          val format0 = Assem.format(fn(temp)=> valOf(Temp.Table.look(allocation, temp)))
 	    in  
