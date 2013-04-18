@@ -42,7 +42,7 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 							 | NONE => Temp.makestring(temp)
 
 (* list of all register names *)
-val registers = map tempToString (specialregs @ argregs @ calleesaves @ callersaves)
+val registers = map tempToString (calleesaves @ callersaves)
 
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
 
