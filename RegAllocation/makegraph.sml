@@ -7,13 +7,8 @@ struct
 	fun instrs2graph instrs = 
 	let 
 		val graph = G.newGraph()
-		val namedlabels = map (fn(s)=>A.LABEL{assem="",lab=Temp.namedlabel s}) ["print",
-	"flush", "initArray", "malloc", "getchar", "ord", "chr", "size",
-	"substring", "concat", "not", "exit"]
-		val modInstr = namedlabels @ instrs
-		val nodelist = map (fn _ => G.newNode(graph)) modInstr
-		val instrTuple = ListPair.zip (modInstr, nodelist)
-	
+		val nodelist = map (fn _ => G.newNode(graph)) instrs
+		val instrTuple = ListPair.zip (instrs, nodelist)
 
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
@@ -58,16 +53,23 @@ struct
 
 		val _ = connectEdges instrTuple  
 
+	    (* Gets node using label key *)
 		fun getNode label = 
 			case S.look(labeltonode, label) of
 				SOME(node) => node
 		      | NONE => ErrorMsg.impossible ("Cannot find label "^Symbol.name(label))
 
+        (* Checks if node is in labeltonode to prevent external calls and jumps to other frags *)
+		fun checkNode label = 
+			case S.look(labeltonode, label) of
+				SOME(node) => true
+		      | NONE => false
+
 		(* Creates all jump edges *)
 		fun connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node) =
 		    (case jump of
 		          SOME(labels) => (map 
-		          	(fn label => G.mk_edge({from=node, to=getNode label})) 
+		          	(fn label => if(checkNode label) then (G.mk_edge {from=node, to=getNode label}) else ()) 
 		          	labels; ())
 		        | NONE => ())
 		  | connectJumps (_, node) = ()   
