@@ -110,7 +110,7 @@ struct
   fun staticLink (InnerLevel(defLevel),InnerLevel(currentLevel)) = 
       let val {parent = _, frame = _, id = defId } = defLevel 
 	  val {parent = currParent, frame = currFrame, id = currId} = currentLevel
-	  val pos = case currParent of InnerLevel(k) => !(#num (#frame (k)))
+	  val pos = case currParent of InnerLevel(k) => !(#frameoffset (#frame (k)))
 	      	       		         | Outermost =>  0
       in
 	  if (defId = currId) 

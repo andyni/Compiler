@@ -1,13 +1,15 @@
 structure MipsFrame : FRAME = 
 struct
 
-type frame = {name: Temp.label, formals: bool list, num: int ref}
-type register = string
-
 datatype access = InFrame of int 
 		| InReg of Temp.temp
+
+type frame = {name: Temp.label, formals: access list, frameoffset: int ref}
+
 datatype frag = PROC of {body: Tree.stm, frame: frame}
 	      | STRING of Temp.label * string
+
+type register = string
 			       
 val wordSize = 4
 
@@ -49,36 +51,46 @@ fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n"
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
   | exp (InReg(register)) = (fn(expr) => Tree.TEMP(register))
 
-fun newFrame f = let val {name=label, formals=formals} = f
-		 in
-		     {name=label, formals=formals, num = ref 0}
-		 end
+fun newFrame f = let 
+		val {name=label, formals=formals} = f
+		val offset = ref 0
+		fun allocate (escape) = if (escape) then ((offset := !offset - wordSize); InFrame(!offset)) 
+											else (InReg(Temp.newtemp()))
+		val accesses = map allocate formals
+	in
+	    {name=label, formals=accesses, frameoffset = offset}
+	end
 		     
-fun name f = let val {name = label, formals = _, num = _} = f
-	     in
-		 label
-	     end
-		 
-fun forms f = let val {name = _, formals = _, num = num} = f
-		  val locals = !num
-		  fun createAccessList (0,l) = l
-		    | createAccessList (n,l) = createAccessList(n+wordSize,InFrame(n)::l)
-	      in
-		  createAccessList(locals, [])
-	      end
+fun name (f:frame) = #name f
+fun forms (f:frame) = #formals f
 
-fun allocLocal f = let val {name = _, formals = _, num = num} = f
+fun allocLocal f = let val {name = _, formals = _, frameoffset = frameoffset} = f
 		   in
 		       (fn boolean => case boolean of
-					  true => (num := !num - wordSize; InFrame(!num))
+					  true => (frameoffset := !frameoffset - wordSize; InFrame(!frameoffset))
 					| false => InReg(Temp.newtemp()))
 		   end			    		
 
 fun externalCall (s,args) = Tree.CALL(Tree.NAME(Temp.namedlabel s), args) 				    
 
+(* Recursively creates sequence tree *)
+fun seq ([])  = Tree.EXP(Tree.CONST 0)
+  | seq ([a]) = a 
+  | seq (a::l) = Tree.SEQ(a,seq l)
+
+fun viewshift (frame : frame) = 
+	let val formals' = forms frame
+		fun moveArgs (argReg, access) = Tree.MOVE(exp access (Tree.TEMP FP), Tree.TEMP argReg)
+		val l = ListPair.zip(argregs, formals')
+		val _ = print (Int.toString(length(l)))
+	in
+		seq(map moveArgs l) 
+	end
+
 (* Procedure entry/exit *)
-fun procEntryExit1 (frame, body) = 
-    body
+fun procEntryExit1 (frame, body) =
+    Tree.SEQ(viewshift(frame), body)
+
 fun procEntryExit2 (frame, body) = 
     body @
     [Assem.OPER{assem="",
