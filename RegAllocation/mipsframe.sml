@@ -32,7 +32,7 @@ val calleesaves = createTempList(8,[])
 val callersaves = createTempList(10,[])
 val calldefs = callersaves @ [RA, RV]
 
-val reglist = specialregs @ argregs @ calleesaves @ callersaves @ calldefs
+val reglist = specialregs @ argregs @ calleesaves @ callersaves
 
 (* mapping from special temps to their names, nonspecial temps to NONE *)
 val tempMap = foldr (fn ((temp, name), table) => Temp.Table.enter(table, temp, name)) 
@@ -54,10 +54,10 @@ val registers = map tempToString (calleesaves @ callersaves)
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
 
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
-  | exp (InReg(register)) =(print( "REGNUM: "^Temp.makestring(register)); (fn(expr) => Tree.TEMP(register)))
+  | exp (InReg(register)) =(fn(expr) => Tree.TEMP(register))
 
 
-fun printacc(InFrame(k)) = print("MEMORY ACCESS : "^Int.toString(k)^"\n")
+fun printacc (InFrame(k)) = print("MEMORY ACCESS : "^Int.toString(k)^"\n")
   | printacc (InReg(register)) =print( "REG ACCESS: "^Temp.makestring(register)^"\n")
 
 fun newFrame f = let 
@@ -89,20 +89,23 @@ fun seq ([])  = Tree.EXP(Tree.CONST 0)
 
 fun viewshift (frame : frame) = 
 	let val formals' = forms frame
-	    val _ = print (Symbol.name(name frame) ^"\n")
-	    fun	printformals(InReg(temp)) = print ("ARG: "^(Temp.makestring temp))
-	    	| printformals(InFrame(loc)) = print ("MEMARG:"^(Int.toString(loc)))
-		val _ = map (printformals) formals'
-		fun moveArgs (argReg, access) = Tree.MOVE(exp access (Tree.TEMP FP), Tree.TEMP argReg)
+	    fun moveArgs (argReg, access) = Tree.MOVE(exp access (Tree.TEMP FP), Tree.TEMP argReg)
 		val l = ListPair.zip(argregs, formals')
-		val _ = print (Int.toString(length(l)))
 	in
 		seq(map moveArgs l) 
 	end
 
 (* Procedure entry/exit *)
-fun procEntryExit1 (frame, body) =
-    Tree.SEQ(viewshift(frame), body)
+fun procEntryExit1 (frame, body) = 
+	let fun move (reg1, reg2) = Tree.MOVE(Tree.TEMP reg1, Tree.TEMP reg2)
+		val save = RA::calleesaves
+		val save' = map (fn _ => Temp.newtemp()) save
+		val saved = map (move) (ListPair.zip(save', save))
+		val restored = map (move) (ListPair.zip(save, save'))
+		val body' = seq(saved @ [body] @ restored)
+	in	
+    	Tree.SEQ(viewshift(frame), body')
+	end
 
 fun procEntryExit2 (frame, body) = 
     body @
