@@ -15,8 +15,16 @@ struct
   	   	         | InnerLevel of {parent: level, frame: F.frame, id : unit ref}
 				     
   type access = level * F.access
+ 
   type frag = F.frag
+
+  fun printacc(level,access) = F.printacc(access)
 			    
+  fun getLFormals(mylevel) = let val InnerLevel{parent,frame,id} = mylevel
+   in 
+      map (fn(l) => (mylevel,l)) (F.getLFormals(frame))
+   end
+
   val outermost = Outermost
 
   val fraglist = ref ([] : F.frag list)

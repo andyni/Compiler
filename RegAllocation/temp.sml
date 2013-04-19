@@ -2,8 +2,11 @@
 structure Temp : TEMP =
 struct
     type temp = int
-    val temps = ref 100
+    val temps = ref 140
+    val stemps = ref 100
     fun newtemp() = let val t = !temps in temps := t+1; t end
+    
+    fun newspectemp() = let val t = !stemps in stemps := t+1; t end
 
     structure Table = IntMapTable(type key = temp
 				  fun getInt n = n)
@@ -21,7 +24,7 @@ struct
     fun resetlabs() = labs:=0
 end
 
-    fun reset() = (resetlabs(); temps:=140)
+    fun reset() = (resetlabs(); temps:=140; stemps:=100)
 
 
 

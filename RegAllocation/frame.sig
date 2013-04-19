@@ -14,6 +14,8 @@ sig
     val FP : Temp.temp
     val RV : Temp.temp
     val wordSize: int
+    val printacc : access -> unit
+    val getLFormals : frame -> access list
     val tempMap : register Temp.Table.table
     val tempToString : Temp.temp -> string
     val specialregs : Temp.temp list
@@ -22,6 +24,7 @@ sig
     val callersaves : Temp.temp list
     val calldefs : Temp.temp list
     val registers : register list
+    val reglist : Temp.temp list
     val exp : access -> Tree.exp -> Tree.exp
     val externalCall : string * Tree.exp list -> Tree.exp
     val procEntryExit1 : frame * Tree.stm -> Tree.stm

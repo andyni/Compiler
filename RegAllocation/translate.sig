@@ -9,7 +9,8 @@ sig
     val newLevel : {parent: level, name: Temp.label, formals: bool list} -> level
     val formals : level -> access list
     val allocLocal : level -> bool -> access					
-    
+    val printacc : access->unit
+    val getLFormals : level -> access list
     val NIL : exp
     val binop : Tree.binop * exp * exp -> exp
     val relop : Tree.relop * exp * exp -> exp 

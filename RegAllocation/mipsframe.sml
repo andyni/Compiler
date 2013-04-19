@@ -15,20 +15,24 @@ val wordSize = 4
 
 fun regsEqual(reg1, reg2) = String.compare(reg1,reg2)=EQUAL
 
-val ZERO = Temp.newtemp()
-val SP = Temp.newtemp()
-val FP = Temp.newtemp()
-val RV = Temp.newtemp()	 
-val RA = Temp.newtemp()
+fun getLFormals({name,formals=a::forms,frameoffset}) = forms
+
+val ZERO = Temp.newspectemp()
+val SP = Temp.newspectemp()
+val FP = Temp.newspectemp()
+val RV = Temp.newspectemp()	 
+val RA = Temp.newspectemp()
 
 fun createTempList (0, l) = l
-  | createTempList (length, l) = createTempList(length-1, Temp.newtemp()::l) 
+  | createTempList (length, l) = createTempList(length-1, Temp.newspectemp()::l) 
 
 val specialregs = [ZERO, SP, FP, RV, RA]
 val argregs = createTempList(4,[])
 val calleesaves = createTempList(8,[])
 val callersaves = createTempList(10,[])
 val calldefs = callersaves @ [RA, RV]
+
+val reglist = specialregs @ argregs @ calleesaves @ callersaves @ calldefs
 
 (* mapping from special temps to their names, nonspecial temps to NONE *)
 val tempMap = foldr (fn ((temp, name), table) => Temp.Table.enter(table, temp, name)) 
@@ -46,10 +50,15 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 (* list of all register names *)
 val registers = map tempToString (calleesaves @ callersaves)
 
+
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
 
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
-  | exp (InReg(register)) = (fn(expr) => Tree.TEMP(register))
+  | exp (InReg(register)) =(print( "REGNUM: "^Temp.makestring(register)); (fn(expr) => Tree.TEMP(register)))
+
+
+fun printacc(InFrame(k)) = print("MEMORY ACCESS : "^Int.toString(k)^"\n")
+  | printacc (InReg(register)) =print( "REG ACCESS: "^Temp.makestring(register)^"\n")
 
 fun newFrame f = let 
 		val {name=label, formals=formals} = f
@@ -80,6 +89,10 @@ fun seq ([])  = Tree.EXP(Tree.CONST 0)
 
 fun viewshift (frame : frame) = 
 	let val formals' = forms frame
+	    val _ = print (Symbol.name(name frame) ^"\n")
+	    fun	printformals(InReg(temp)) = print ("ARG: "^(Temp.makestring temp))
+	    	| printformals(InFrame(loc)) = print ("MEMARG:"^(Int.toString(loc)))
+		val _ = map (printformals) formals'
 		fun moveArgs (argReg, access) = Tree.MOVE(exp access (Tree.TEMP FP), Tree.TEMP argReg)
 		val l = ListPair.zip(argregs, formals')
 		val _ = print (Int.toString(length(l)))
@@ -96,6 +109,7 @@ fun procEntryExit2 (frame, body) =
     [Assem.OPER{assem="",
             src=[ZERO, RA, SP] @ calleesaves,
             dst=[], jump=SOME([])}]
+
 fun procEntryExit3 ({name, params, locals}, body) = 
 	{prolog = "PROCEDURE " ^ (Symbol.name name) ^ "\n",
      body = body,

@@ -73,7 +73,7 @@ struct
 		(* Create Interference Graph *)
 		val interGraph = G.newGraph()
 		val temps = foldr (fn(node, l) => valOf(G.Table.look(def,node)) @ l) [] nodelist
-		val tempslist = Set.listItems(Set.addList(Set.empty,temps))
+		val tempslist =	Set.listItems(Set.addList(Set.empty,MipsFrame.reglist @ temps))
 
 				
 		(* Creates tnode and gtemp *)	     
