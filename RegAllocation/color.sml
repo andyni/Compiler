@@ -18,8 +18,17 @@ struct
 	fun color{interference, initial, spillCost, registers} = 
 	    let val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
 	    	val nodelist = G.nodes(graph)
+		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) nodelist
 	    	fun makeWorkList() =
-		    let fun addtolist (node, (list1,list2)) = if (length(G.adj(node))<K) then (node::list1,list2) else (list1,node::list2)
+		    let fun addtolist (node, (list1,list2)) = 
+		        let val prec = Temp.Table.look(initial,gtemp(node))
+			in
+				case prec of SOME(r) =>(list1,list2)
+				           | NONE    => if
+					     	     (length(G.adj(node))<K) then
+					   	     (node::list1,list2) else
+					   	     (list1,node::list2)
+			end
 			in
 				foldl (addtolist) ([],[]) nodelist
 			end
@@ -75,11 +84,9 @@ struct
 		    let val neighbors = G.adj(node)
 		    	fun compColor(nbor,reg) = 
 			    	let val col = Temp.Table.look(colorTable,gtemp(nbor))
-				    val pcol = Temp.Table.look(initial,gtemp(nbor))
-				    val isPcol = case pcol of NONE => true
-					     	    	    | SOME(r) => not (Frame.regsEqual(reg,r))
+				   
 				in
-					case col of NONE => isPcol
+					case col of NONE => true
 					     	 |  SOME(r) => not (Frame.regsEqual(reg,r))
 		    		end
 		    	fun availReg(nbor,avail) = List.filter (fn (a) => compColor(nbor,a)) avail
@@ -92,7 +99,7 @@ struct
 				(ncolor, nspill)
 			end
 
-		val (colorTable, spillTable) = foldl (assignColors) (Temp.Table.empty, []) selectStack
+		val (colorTable, spillTable) = foldl (assignColors) (initial, []) selectStack
 
 		in
 			(colorTable, spillTable)

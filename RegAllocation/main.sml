@@ -13,7 +13,7 @@ structure F : FRAME = MipsFrame
 	       val (intgraph,extl) = Liveness.interferenceGraph(ginstr)
 	       (*val _ = (print "Interference Graph: \n"; Liveness.show(TextIO.stdOut,intgraph))*)
          val (instrs', allocation) = RegAlloc.alloc (instrs, frame)
-         val format0 = Assem.format(fn(temp)=> Temp.makestring(temp))
+ 	 val format0 = Assem.format(fn(temp)=> valOf(Temp.Table.look(allocation, temp)))
 	    in  
       	  app (fn i => (TextIO.output(out,format0 i))) instrs
       end
