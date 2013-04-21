@@ -15,7 +15,7 @@ val wordSize = 4
 
 fun regsEqual(reg1, reg2) = String.compare(reg1,reg2)=EQUAL
 
-fun getLFormals({name,formals=a::forms,frameoffset}) = forms
+fun getLFormals({name,formals=a::forms,frameoffset}) = (print ("FORMSLENGTH:"^(Int.toString(length(forms))));forms)
 
 val ZERO = Temp.newspectemp()
 val SP = Temp.newspectemp()
@@ -23,13 +23,13 @@ val FP = Temp.newspectemp()
 val RV = Temp.newspectemp()	 
 val RA = Temp.newspectemp()
 
-fun createTempList (0, l) = l
-  | createTempList (length, l) = createTempList(length-1, Temp.newspectemp()::l) 
+fun createTempList (0) = []
+  | createTempList (length ) = Temp.newspectemp()::createTempList(length-1) 
 
 val specialregs = [ZERO, SP, FP, RV, RA]
-val argregs = createTempList(4,[])
-val calleesaves = createTempList(8,[])
-val callersaves = createTempList(10,[])
+val argregs = createTempList(4)
+val calleesaves = createTempList(8)
+val callersaves = createTempList(10)
 val calldefs = callersaves @ [RA, RV]
 
 val reglist = specialregs @ argregs @ calleesaves @ callersaves
@@ -62,10 +62,12 @@ fun printacc (InFrame(k)) = print("MEMORY ACCESS : "^Int.toString(k)^"\n")
 
 fun newFrame f = let 
 		val {name=label, formals=formals} = f
+		val _ = print  (Symbol.name(label)^"FORMfSLENGTH:"^(Int.toString(length(formals))))
 		val offset = ref 0
 		fun allocate (escape) = if (escape) then ((offset := !offset - wordSize); InFrame(!offset)) 
 											else (InReg(Temp.newtemp()))
 		val accesses = map allocate formals
+		val _ = print  (Symbol.name(label)^"FORMfaSLENGTH:"^(Int.toString(length(accesses))))
 	in
 	    {name=label, formals=accesses, frameoffset = offset}
 	end
@@ -104,7 +106,7 @@ fun procEntryExit1 (frame, body) =
 		val restored = map (move) (ListPair.zip(save, save'))
 		val body' = seq(saved @ [body] @ restored)
 	in	
-    	Tree.SEQ(viewshift(frame), body')
+    	Tree.SEQ(viewshift(frame), body)
 	end
 
 fun procEntryExit2 (frame, body) = 

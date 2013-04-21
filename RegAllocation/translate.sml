@@ -35,7 +35,7 @@ struct
 
   (* Creates a new level *)
   fun newLevel {parent = lev, name = label, formals = formlist} = 
-  	InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()}
+  	(print  (Symbol.name(label)^"FORMaSLENGTH:"^(Int.toString(length(formlist))));InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()})
 
   (* Recursive creates sequence tree *)
   fun seq ([])  = T.EXP(T.CONST 0)
