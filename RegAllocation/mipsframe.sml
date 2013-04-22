@@ -48,7 +48,7 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 							 | NONE => Temp.makestring(temp)
 
 (* list of all register names *)
-val registers = map tempToString (calleesaves @ callersaves)
+val registers = map tempToString (calleesaves @ callersaves @ specialregs @ argregs )
 
 
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
@@ -99,25 +99,28 @@ fun viewshift (frame : frame) =
 
 (* Procedure entry/exit *)
 fun procEntryExit1 (frame, body) = 
-	let fun move (reg1, reg2) = Tree.MOVE(Tree.TEMP reg1, Tree.TEMP reg2)
+	let fun moveIn (reg1, InFrame(location)) =
+	    	Tree.MOVE(Tree.MEM(Tree.BINOP(Tree.PLUS,Tree.TEMP FP,Tree.CONST location)), Tree.TEMP reg1)
+		fun moveOut (reg1, InFrame(location)) =
+	    	Tree.MOVE(Tree.TEMP reg1,Tree.MEM(Tree.BINOP(Tree.PLUS,Tree.TEMP FP,Tree.CONST location)))
 		val save = RA::calleesaves
-		val save' = map (fn _ => Temp.newtemp()) save
-		val saved = map (move) (ListPair.zip(save', save))
-		val restored = map (move) (ListPair.zip(save, save'))
+		val save' = map (fn _ => allocLocal(frame)(true)) save
+		val saved = map (moveIn) (ListPair.zip(save, save'))
+		val restored = map (moveOut) (ListPair.zip(save, save'))
 		val body' = seq(saved @ [body] @ restored)
 	in	
-    	Tree.SEQ(viewshift(frame), body)
+    	Tree.SEQ(viewshift(frame), body')
 	end
 
 fun procEntryExit2 (frame, body) = 
     body @
     [Assem.OPER{assem="",
-            src=[ZERO, RA, SP] @ calleesaves,
+            src=[ZERO, RA, SP, FP, RV] @ calleesaves,
             dst=[], jump=SOME([])}]
 
-fun procEntryExit3 ({name, params, locals}, body) = 
-	{prolog = "PROCEDURE " ^ (Symbol.name name) ^ "\n",
+fun procEntryExit3 ({name, formals, frameoffset}, body) = 
+	{prolog = ((Symbol.name name) ^ ": sw $fp, ~4(sp)\naddi $fp, $sp, ~4 \naddi $sp, $sp,"^Int.toString((!frameoffset)-4)^"\n"),
      body = body,
-     epilog = "END " ^ (Symbol.name name) ^ "\n"}
+     epilog = ("addi $sp, $sp,"^Int.toString(~(!frameoffset)+4)^"\nlw $fp,0($fp)\njr $ra\n") }
 
 end

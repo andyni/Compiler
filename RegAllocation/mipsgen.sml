@@ -70,23 +70,27 @@ struct
                         src=[munchExp e1, munchExp e2], dst=[], jump=NONE})
 
         | munchStm (Tr.MOVE(Tr.MEM(Tr.CONST i),e2)) =
-            emit(A.OPER{assem="sw `s0," ^ Int.toString(i) ^ "(`r0) \n",
+            emit(A.OPER{assem="sw `s0," ^ Int.toString(i) ^ "($r0) \n",
                         src=[munchExp e2], dst=[], jump=NONE})
 
         | munchStm (Tr.MOVE(Tr.MEM(e1),e2)) =
             emit(A.OPER{assem="sw `s1, 0(`s0) \n",
                         src=[munchExp e1, munchExp e2], dst=[], jump=NONE})
 
+       | munchStm (Tr.MOVE(Tr.TEMP i, Tr.MEM(Tr.BINOP(Tr.PLUS,e1,Tr.CONST n)))) =
+            emit(A.OPER{assem=("lw `d0, "^Int.toString(n)^"(`s0) \n"),
+                        src=[munchExp e1], dst=[i], jump=NONE})
+
 	      | munchStm (Tr.MOVE(Tr.TEMP i, Tr.TEMP k)) =
 	          emit(A.MOVE{assem="addi `d0,`s0,0 \n", src=k, dst=i})
 
 	      | munchStm (Tr.MOVE(Tr.TEMP i, Tr.CONST k)) = 
-	          emit(A.OPER{assem="addi `d0, r0, "^Int.toString(k)^" \n",
+	          emit(A.OPER{assem="addi `d0, $r0, "^Int.toString(k)^" \n",
             		src=[], dst=[i], jump=NONE})
 
 	      | munchStm (Tr.MOVE(Tr.TEMP i, Tr.CALL(e,args))) =
 	          (munchExp(Tr.CALL(e,args));
-	          emit(A.OPER{assem="addi `d0, rv, 0 \n", src=[], dst=[i], jump=NONE})) 
+	          emit(A.OPER{assem="addi `d0, $rv, 0 \n", src=[], dst=[i], jump=NONE})) 
         
         | munchStm (Tr.MOVE(Tr.TEMP i, e2)) = 
             emit(A.OPER{assem="addi `d0,`s0,0 \n",
@@ -122,7 +126,7 @@ struct
 
       	| munchExp(Tr.MEM(Tr.CONST i)) = 
       		  result(fn r => emit(A.OPER
-      		  {assem="lw `d0, "^Int.toString(i)^"(r0) \n",src=[],
+      		  {assem="lw `d0, "^Int.toString(i)^"($r0) \n",src=[],
       			dst=[r], jump=NONE}))
 
       	| munchExp(Tr.MEM(e1)) =
@@ -153,7 +157,7 @@ struct
 	             val f = Temp.newlabel();
 	         in 
             result(fn r => emit(A.OPER
-            {assem="addi `d0, r0, 1 \n beq `s0,r0,"^(Symbol.name t)^" \n bne `s1,r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, r0, 0 \n"^(Symbol.name f)^":",
+            {assem="addi `d0, $r0, 1 \n beq `s0,$r0,"^(Symbol.name t)^" \n bne `s1,$r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, $r0, 0 \n"^(Symbol.name f)^":",
             src=[munchExp e1,munchExp e2],
             dst=[r], jump=NONE}))
 	         end
@@ -162,7 +166,7 @@ struct
 	             val f = Temp.newlabel();
 	         in
             result(fn r => emit(A.OPER
-            {assem="addi `d0, r0, 1 \n bne `s0,r0,"^(Symbol.name f)^" \n bne `s1,r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, r0, 0 \n"^(Symbol.name f)^":",
+            {assem="addi `d0, $r0, 1 \n bne `s0,$r0,"^(Symbol.name f)^" \n bne `s1,$r0,"^(Symbol.name f)^" \n"^(Symbol.name t)^": addi `d0, $r0, 0 \n"^(Symbol.name f)^":",
             src=[munchExp e1,munchExp e2],
             dst=[r], jump=NONE}))
 	         end
@@ -170,7 +174,7 @@ struct
         (* CONSTANT *)
       	| munchExp(Tr.CONST i) =
       	  	result(fn r => emit(A.OPER
-      		  {assem="addi `d0, r0, "^ Int.toString(i) ^ " \n", 
+      		  {assem="addi `d0, $r0, "^ Int.toString(i) ^ " \n", 
             src=[],	dst=[r], jump=NONE}))
 
         (* MINUS *)
@@ -210,7 +214,7 @@ struct
       and munchArgs(i,[]) = []
         | munchArgs(i,a::l) =
 	       (if (i<4) then
-	        emit(A.OPER{assem="add a"^Int.toString(i)^",`s0,r0 \n", 
+	        emit(A.OPER{assem="add a"^Int.toString(i)^",`s0,$r0 \n", 
 	     		            src=[munchExp a], dst=[], jump=NONE})
 	        else emit(A.OPER{assem="sw `s0,"^Int.toString((~4)*i)^"(fp) \n",
 	   		                   src=[munchExp a], dst=[], jump=NONE}); 

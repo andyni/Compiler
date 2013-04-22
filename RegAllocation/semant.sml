@@ -429,7 +429,7 @@ struct
 		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		       
 		    in
-		        Tr.functiondec(mylevel,bodyexp);
+		        Tr.functiondecwresult(mylevel,bodyexp);
 			case getnamedty(result_ty) of Types.RECORD(fs,us)=> 
 		 	if (tytrans = Types.NIL) then () else if ((tytrans) = getnamedty(result_ty)) 
 			   then () 
@@ -455,7 +455,7 @@ struct
 		       val venv'' = foldr enterparam venv formparam
 		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		    in
-		        Tr.functiondec(mylevel,bodyexp);
+		        Tr.functiondecworesult(mylevel,bodyexp);
 		 	if (tytrans = result_ty) 
 			   then () 
 			   else ErrorMsg.error pos "Return type does not match declared function type"
@@ -475,6 +475,6 @@ struct
 	    val toplevel = Tr.newLevel({parent=Tr.outermost, name=Temp.newlabel(), formals=[true]})
 	    val {exp=exp1,ty}=(transExp(Env.base_venv,Env.base_tenv,exp, toplevel, breakLabel))
 	in
-		Tr.functiondec(toplevel,exp1)
+		Tr.functiondecworesult(toplevel,exp1)
 	end
 end

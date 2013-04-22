@@ -34,7 +34,8 @@ sig
     val whileexp : exp * exp * Temp.label -> exp
     val forexp : exp * exp * exp * exp * Temp.label -> exp
     val breakexp : Temp.label -> exp
-    val functiondec : level * exp -> unit
+    val functiondecwresult : level * exp -> unit
+    val functiondecworesult : level * exp -> unit
 
     val procEntryExit : {level: level, body: exp} -> unit
     val getResult : unit -> frag list

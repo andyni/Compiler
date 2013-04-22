@@ -14,9 +14,11 @@ struct
 	structure G = Graph
 	structure Frame = MipsFrame
 	type allocation = MipsFrame.register Temp.Table.table
-	val K = 18
+	val K = 27
 	fun color{interference, initial, spillCost, registers} = 
-	    let val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
+	    let val _ = print "\n PRECOLOREDS2: "
+	        val _ = map (fn(k) => print (Temp.makestring(k)^":"^valOf(Temp.Table.look(initial,k))^",")) Frame.reglist
+		val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
 	    	val nodelist = G.nodes(graph)
 		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) nodelist
 	    	fun makeWorkList() =
@@ -33,13 +35,17 @@ struct
 				foldl (addtolist) ([],[]) nodelist
 			end
 		val (simplifyWorklist, spillWorklist) = makeWorkList()
+		val _ = print "\n SIMPLIFY \n"
+		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) simplifyWorklist
+		val _ = print "\n SPILL \n"
+		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) spillWorklist
 		fun makeDegreeTable(node,table) =
 		    let val degree = length(G.adj(node))
 		    	in
 				G.Table.enter(table,node,degree)
 			end
 
-		val degreeTable = foldl (makeDegreeTable) G.Table.empty nodelist
+		val degreeTable = foldl (makeDegreeTable) G.Table.empty (simplifyWorklist @ spillWorklist)
 
 
 		fun removeElem(list,item) =
@@ -49,10 +55,12 @@ struct
 		    let val neighbors = G.adj(node)
 		        val nsimplify' = removeElem(simplifyWorklist,node)
 			val nselect = node::selectStack
-
 		    	fun decrementdegree(n,(degreeTable,simplifyWorklist,spillWorklist))=
-			    let val SOME(degree) =  G.Table.look(degreeTable,n)
-			    	val upDegree =  G.Table.enter(degreeTable,n,degree-1)
+			    let val degreeOpt =  G.Table.look(degreeTable,n)
+			    	val upDegree = case degreeOpt of SOME(deg) => G.Table.enter(degreeTable,n,deg-1)
+							     | NONE => degreeTable
+				val degree = case degreeOpt of SOME(deg) => deg
+								| NONE => 0
 				val simplify = if (degree=K) then n::simplifyWorklist else simplifyWorklist
 				val spill = if (degree=K) then removeElem(spillWorklist,n)  else spillWorklist			    	
 				in
@@ -63,25 +71,29 @@ struct
 				(nselect,ndegree,nsimplify,nspill)
 			end
 
-		fun spillNode(selectStack, degreeTable, simplifyWorklist,node::spillWorklist)=
+		fun spillNode(selectStack, degreeTable, simplifyWorkList,node::spillWorklist)=
 		    let fun bestnode(n,bestn) = if (spillCost(n)>spillCost(bestn)) then n else bestn		    				
 		    	val bestN = foldl (bestnode) node spillWorklist
 			val interspill = node::spillWorklist
 			val nspill = removeElem(interspill,bestN)
 			in
-				simplifyNode(bestN, selectStack, degreeTable, simplifyWorklist, nspill)
+				simplifyNode(bestN, selectStack, degreeTable, simplifyWorkList, nspill)
 			end
 
 		fun handleSimplification(selectStack, degreeTable, [], []) = selectStack 
 		    | handleSimplification(selectStack, degreeTable, [], spillWorklist) =
-						      handleSimplification(spillNode(selectStack, degreeTable, simplifyWorklist, spillWorklist))
+						      handleSimplification(spillNode(selectStack, degreeTable, [], spillWorklist))
 		    | handleSimplification(selectStack, degreeTable, n::simplifyWorklist, spillWorklist) =
 		    				      handleSimplification(simplifyNode(n, selectStack, degreeTable, simplifyWorklist, spillWorklist))
 
 		val selectStack = handleSimplification([], degreeTable, simplifyWorklist, spillWorklist)
+
+		val _ = print "\n SELECT \n"
+		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) selectStack
 		
 		fun assignColors(node, (colorTable, spillNodes)) =
-		    let val neighbors = G.adj(node)
+		    let val _ = print ("COLORING : "^Temp.makestring(gtemp(node))^"\n")
+			val neighbors = G.adj(node)
 		    	fun compColor(nbor,reg) = 
 			    	let val col = Temp.Table.look(colorTable,gtemp(nbor))
 				   

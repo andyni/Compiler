@@ -5,18 +5,24 @@ structure F : FRAME = MipsFrame
    fun emitproc out (F.PROC{body,frame}) =
      let val _ = print ("emit "^ Symbol.name(F.name frame) ^ "\n")
 	       val stms = Canon.linearize body
-         val _ = app (fn s => Printtree.printtree(out,s)) stms; 
+         val _ = app (fn s => Printtree.printtree(TextIO.stdOut,s)) stms; 
          val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
-         val stms'' = Tree.LABEL(MipsFrame.name(frame))::stms'
-	       val instrs =   List.concat(map (MipsGen.codegen frame) stms'') 
+    	       val instrss =   List.concat(map (MipsGen.codegen frame) stms') 
+     	       val instrs = F.procEntryExit2(frame, instrss)
 	       val (ginstr,l) =  Makegraph.instrs2graph(instrs)
 	       val (intgraph,extl) = Liveness.interferenceGraph(ginstr)
-	       (*val _ = (print "Interference Graph: \n"; Liveness.show(TextIO.stdOut,intgraph))*)
+	       (* val _ = (print "Interference Graph: \n";
+     Liveness.show(out,intgraph)) *)
          val (instrs', allocation) = RegAlloc.alloc (instrs, frame)
- 	 val format0 = Assem.format(fn(temp)=> valOf(Temp.Table.look(allocation, temp)))
+	 val _ = print "\n PRECOLOREDS: "
+	 val _ = map (fn(k) => print (Temp.makestring(k)^":"^valOf(Temp.Table.look(allocation,k))^",")) F.reglist
+ 	 val format0 = Assem.format(fn(temp)=>valOf(Temp.Table.look(allocation, temp)))
+         val {prolog, body=body', epilog} = F.procEntryExit3(frame, instrs')
 	    in  
-      	  app (fn i => (TextIO.output(out,format0 i))) instrs
-      end
+	    	TextIO.output(out, prolog);
+      	  	app (fn i => (TextIO.output(out,format0 i))) body';
+		TextIO.output(out, epilog)
+      	    end
     | emitproc out (F.STRING(lab,s)) = TextIO.output(out,F.string(lab,s))
 
    fun withOpenFile fname f = 

@@ -123,7 +123,7 @@ struct
       in
 	  if (defId = currId) 
 	  then T.TEMP(F.FP)
-	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(4)))
+	  else T.MEM(T.BINOP(T.PLUS, staticLink(InnerLevel(defLevel), currParent), T.CONST(~4)))
       end
 
   (* Converts simple, subscript, and field variables to IR*)
@@ -201,10 +201,10 @@ struct
   fun assigncall (exp1, exp2) = Nx(T.MOVE(unEx(exp1), unEx(exp2)))       
 				 
   (* Translates function calls to IR *)
-  fun funcall (args,label,level,mylevel) = 
+  fun funcall (args,label,level,funlevel) = 
       let val args' = map unEx args
       in
-        case mylevel of
+        case funlevel of
           InnerLevel({parent=topParent, frame=_, id=_}) =>
             Ex(T.CALL(T.NAME label, staticLink(topParent,level)::args'))
         | Outermost => 
@@ -260,6 +260,6 @@ struct
   fun getResult () = !fraglist
 
   (* Translates function declaration to IR *)
-  fun functiondec (level, body) = procEntryExit({level=level,body=body})
-					       
+  fun functiondecwresult (level, body) = procEntryExit({level=level,body=Nx(T.MOVE(T.TEMP F.RV,unEx(body)))})
+  fun functiondecworesult (level, body) = procEntryExit({level=level,body=body})					       
 end
