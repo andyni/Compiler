@@ -37,7 +37,7 @@ val reglist = specialregs @ argregs @ calleesaves @ callersaves
 (* mapping from special temps to their names, nonspecial temps to NONE *)
 val tempMap = foldr (fn ((temp, name), table) => Temp.Table.enter(table, temp, name)) 
                     Temp.Table.empty 
-                    [(ZERO, "$zero"), (SP, "$sp"), (FP, "$fp"), (RV, "$rv"), (RA, "$ra"),
+                    [(ZERO, "$0"), (SP, "$sp"), (FP, "$fp"), (RV, "$v0"), (RA, "$ra"),
                      (List.nth(argregs,0), "$a0"), (List.nth(argregs,1), "$a1"), (List.nth(argregs,2), "$a2"), (List.nth(argregs,3), "$a3"),
                      (List.nth(calleesaves,0), "$s0"), (List.nth(calleesaves,1), "$s1"), (List.nth(calleesaves,2), "$s2"), (List.nth(calleesaves,3), "$s3"), (List.nth(calleesaves,4), "$s4"), (List.nth(calleesaves,5), "$s5"), (List.nth(calleesaves,6), "$s6"), (List.nth(calleesaves,7), "$s7"),
                      (List.nth(callersaves,0), "$t0"), (List.nth(callersaves,1), "$t1"), (List.nth(callersaves,2), "$t2"), (List.nth(callersaves,3), "$t3"), (List.nth(callersaves,4), "$t4"), (List.nth(callersaves,5), "$t5"), (List.nth(callersaves,6), "$t6"), (List.nth(callersaves,7), "$t7"), (List.nth(callersaves,8), "$t8"), (List.nth(callersaves,9), "$t9")]
@@ -118,9 +118,11 @@ fun procEntryExit2 (frame, body) =
             src=[ZERO, RA, SP, FP, RV] @ calleesaves,
             dst=[], jump=SOME([])}]
 
+fun i2s i = if (i<0) then ("-"^Int.toString(~i)) else Int.toString(i)
+
 fun procEntryExit3 ({name, formals, frameoffset}, body) = 
-	{prolog = ((Symbol.name name) ^ ": sw $fp, ~4(sp)\naddi $fp, $sp, ~4 \naddi $sp, $sp,"^Int.toString((!frameoffset)-4)^"\n"),
+	{prolog = ((Symbol.name name) ^ ": sw $fp, -4($sp)\naddi $fp, $sp, -4 \naddi $sp, $sp,"^i2s((!frameoffset)-4)^"\n"),
      body = body,
-     epilog = ("addi $sp, $sp,"^Int.toString(~(!frameoffset)+4)^"\nlw $fp,0($fp)\njr $ra\n") }
+     epilog = ("addi $sp, $sp,"^i2s(~(!frameoffset)+4)^"\nlw $fp,0($fp)\njr $ra\n") }
 
 end
