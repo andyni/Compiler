@@ -16,16 +16,16 @@ struct
 
   val base_tenv = foldl enterSymbol S.empty [(S.symbol "string", T.STRING), (S.symbol "int", T.INT)]
   val base_venv = foldl enterSymbol S.empty 
-			[(S.symbol "print", FunEntry {formals=[T.STRING],result=T.UNIT, level=Tr.outermost, label = Temp.namedlabel "print" }), 
-			 (S.symbol "flush", FunEntry {formals=[],result=T.UNIT, level=Tr.outermost, label = Temp.namedlabel "flush" }), 
-			 (S.symbol "getchar", FunEntry {formals=[],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "getchar" }),
-			 (S.symbol "ord", FunEntry {formals=[T.STRING],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "ord" }), 
-			 (S.symbol "chr", FunEntry {formals=[T.INT],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "chr" }), 
-			 (S.symbol "size", FunEntry {formals=[T.STRING],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "size" }), 
-			 (S.symbol "substring", FunEntry {formals=[T.STRING, T.INT, T.INT],result=T.STRING, level= Tr.outermost, label = Temp.namedlabel "substring" }), 
-			 (S.symbol "concat", FunEntry {formals=[T.STRING, T.STRING],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "concat" }),
-			 (S.symbol "not", FunEntry {formals=[T.INT],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "not"} ), 
-			 (S.symbol "exit", FunEntry {formals=[T.INT],result=T.BOTTOM, level=Tr.outermost, label = Temp.namedlabel "exit" })  
+			[(S.symbol "tig_print", FunEntry {formals=[T.STRING],result=T.UNIT, level=Tr.outermost, label = Temp.namedlabel "print" }), 
+			 (S.symbol "tig_flush", FunEntry {formals=[],result=T.UNIT, level=Tr.outermost, label = Temp.namedlabel "flush" }), 
+			 (S.symbol "tig_getchar", FunEntry {formals=[],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "getchar" }),
+			 (S.symbol "tig_ord", FunEntry {formals=[T.STRING],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "ord" }), 
+			 (S.symbol "tig_chr", FunEntry {formals=[T.INT],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "chr" }), 
+			 (S.symbol "tig_size", FunEntry {formals=[T.STRING],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "size" }), 
+			 (S.symbol "tig_substring", FunEntry {formals=[T.STRING, T.INT, T.INT],result=T.STRING, level= Tr.outermost, label = Temp.namedlabel "substring" }), 
+			 (S.symbol "tig_concat", FunEntry {formals=[T.STRING, T.STRING],result=T.STRING, level=Tr.outermost, label = Temp.namedlabel "concat" }),
+			 (S.symbol "tig_not", FunEntry {formals=[T.INT],result=T.INT, level=Tr.outermost, label = Temp.namedlabel "not"} ), 
+			 (S.symbol "tig_exit", FunEntry {formals=[T.INT],result=T.BOTTOM, level=Tr.outermost, label = Temp.namedlabel "exit" })  
 			]
 end
  

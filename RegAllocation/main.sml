@@ -51,7 +51,7 @@ structure F : FRAME = MipsFrame
            val (procs, strings) = foldr (splitFragsList) ([],[]) frags
         in 
             withOpenFile (filename ^ ".s") 
-	          (fn out => ((TextIO.output(out, ".text\ntig_main:\n"));
+	          (fn out => ((TextIO.output(out, ".text\n.globl tig_main\ntig_main:\n"));
                         (map (emitproc out) procs);
                         (read("runtimele.s", out));
                         (read("sysspim.s", out));

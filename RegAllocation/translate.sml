@@ -140,13 +140,13 @@ struct
     | makeLetCall (exparr,exp2) = Ex(T.ESEQ(seq exparr, unEx(exp2))) 
 
   (* Performs string equality/inequality comparisons by calling stringEqual *)				    
-  fun strcmp (str1, str2) = Ex(F.externalCall("stringEqual",[unEx(str1),unEx(str2)]))
+  fun strcmp (str1, str2) = Ex(F.externalCall("tig_stringEqual",[unEx(str1),unEx(str2)]))
   fun nstrcmp (str1, str2) =
       let val r = Temp.newtemp()
 	  val t = Temp.newlabel() and f=Temp.newlabel()
       in
 	  Ex(T.ESEQ(seq [T.MOVE(T.TEMP r, T.CONST 1),
-			 T.CJUMP(T.EQ, F.externalCall("stringEqual",[unEx(str1), unEx(str2)]), T.CONST 0, t, f),
+			 T.CJUMP(T.EQ, F.externalCall("tig_stringEqual",[unEx(str1), unEx(str2)]), T.CONST 0, t, f),
 			 T.LABEL f,
 			 T.MOVE(T.TEMP r, T.CONST 0),
 			 T.LABEL t], T.TEMP r))
@@ -169,7 +169,7 @@ struct
       let val r = Temp.newtemp()
       in
 	  Ex(T.ESEQ(T.MOVE(T.TEMP(r),
-		F.externalCall("initArray",[T.BINOP(T.MUL,unEx(size),
+		F.externalCall("tig_initArray",[T.BINOP(T.MUL,unEx(size),
 		T.CONST	F.wordSize), unEx(exp)])),T.TEMP(r)))
       end
 
