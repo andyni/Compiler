@@ -41,7 +41,7 @@ structure F : FRAME = MipsFrame
            val (procs, strings) = foldr (splitFragsList) ([],[]) frags
         in 
             withOpenFile (filename ^ ".s") 
-	          (fn out => ((TextIO.output(out, ".text\n.global main\n"));
+	          (fn out => ((TextIO.output(out, ".text\n.globl main\n"));
                         (map (emitproc out) procs);
                         (TextIO.output(out, "\n.data\n"));
                         (map (emitstring out) strings)))
