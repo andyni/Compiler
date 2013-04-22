@@ -33,6 +33,16 @@ structure F : FRAME = MipsFrame
    fun splitFragsList (F.PROC p, (procs, strings)) = ((F.PROC p)::procs, strings)
      | splitFragsList (F.STRING s, (procs, strings)) = (procs, (F.STRING s)::strings)
 
+   fun read (file, out) = let
+       val input = TextIO.openIn file
+       fun readfile f = case TextIO.inputLine f of 
+           SOME l => l ^ readfile(f)
+         | NONE => ""
+       val line = readfile(input)
+   in
+       TextIO.output (out, line)
+   end
+
    fun compile filename = 
        let val _ = Translate.resetfraglist();
            val _ = Temp.reset();
@@ -41,8 +51,10 @@ structure F : FRAME = MipsFrame
            val (procs, strings) = foldr (splitFragsList) ([],[]) frags
         in 
             withOpenFile (filename ^ ".s") 
-	          (fn out => ((TextIO.output(out, ".text\n.globl main\n"));
+	          (fn out => ((TextIO.output(out, ".text\ntig_main:\n"));
                         (map (emitproc out) procs);
+                        (read("runtimele.s", out));
+                        (read("sysspim.s", out));
                         (TextIO.output(out, "\n.data\n"));
                         (map (emitstring out) strings)))
         end
