@@ -2,7 +2,8 @@ structure Graph :> GRAPH =
 struct
   type node' = int
   type temp = Temp.temp
-
+  structure Set = ListSetFn(type ord_key = int
+		      	    val compare = Int.compare)
   datatype noderep = NODE of {succ: node' list, pred: node' list}
 
   val emptyNode = NODE{succ=[],pred=[]}
@@ -34,10 +35,12 @@ struct
                 end
 
   fun succ(g,i) = let val NODE{succ=s,...} = A.sub(g,i) 
-		   in map (augment g) s 
+      		      val sets = Set.listItems(Set.addList(Set.empty,s))
+		   in map (augment g) sets
 		  end
   fun pred(g,i) = let val NODE{pred=p,...} = A.sub(g,i)
-                     in map (augment g) p 
+      		      val setp = Set.listItems(Set.addList(Set.empty,p))
+                     in map (augment g) setp
 		  end
   fun adj gi = pred gi @ succ gi
 

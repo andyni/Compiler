@@ -4,7 +4,7 @@ struct
 	structure G = Flow.Graph
 	structure S = Symbol
 
-	fun instrs2graph instrs = 
+	fun instrs2graph (instrs,out) = 
 	let 
 		val graph = G.newGraph()
 		val nodelist = map (fn _ => G.newNode(graph)) instrs
@@ -12,33 +12,23 @@ struct
 
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
-							   (defs, uses, ismoves, labeltonode)) =
-			(print (G.nodename(node)^": " ^assem^"Destinations: ");
-			map (fn(k) => print (Temp.makestring(k)^",")) dst;
-			print "\n";
-			print "Sources: ";
-			map (fn(k) => print (Temp.makestring(k)^",")) src;
-			print "\n";
-			(G.Table.enter(defs, node, dst),
+							   (defs, uses, ismoves, labeltonode)) =	
+			 (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)(G.Table.enter(defs, node, dst),
 			 G.Table.enter(uses, node, src),
 			 G.Table.enter(ismoves, node, false),
-			 labeltonode))		   
+			 labeltonode)		   
 		  | parseInstructions ((A.LABEL{assem=assem, lab=lab}, node), 
 		                       (defs, uses, ismoves, labeltonode))=
-			(print (G.nodename(node)^": " ^assem);
-			(G.Table.enter(defs, node, []),
+			 (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)(G.Table.enter(defs, node, []),
 			 G.Table.enter(uses, node, []),
 			 G.Table.enter(ismoves, node, false),
-			 S.enter(labeltonode, lab, node)))		  
+			 S.enter(labeltonode, lab, node))		  
 		  | parseInstructions ((A.MOVE{assem=assem, dst=dst, src=src}, node), 
-		  					   (defs, uses, ismoves, labeltonode)) =
-			(print (G.nodename(node)^": " ^assem);
-			print("Destinations: "^Temp.makestring(dst)^"\n");
-			print ("Sources: "^Temp.makestring(src)^"\n");
-			(G.Table.enter(defs, node, [dst]),
+		  					   (defs, uses,ismoves, labeltonode)) =
+			  (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)	(G.Table.enter(defs, node, [dst]),
 			 G.Table.enter(uses, node, [src]),
 			 G.Table.enter(ismoves, node, true),
-			 labeltonode))
+			 labeltonode)
 
 		val (defs, uses, ismoves, labeltonode) = foldl parseInstructions 
 			(G.Table.empty, G.Table.empty, G.Table.empty, S.empty) 
@@ -47,11 +37,12 @@ struct
 		(* Creates edge for all non-jump instructions *)
 		fun connectEdges (a::[]) = ()
 		  | connectEdges ((instr1, node1)::l) = 
-		    let val (instr2, node2) = hd(l) in
+		    let val (instr2, node2) = hd(l)
+		    	 in
 		    	G.mk_edge({from= node1, to=node2}); connectEdges(l)
 		    end
 
-		val _ = connectEdges instrTuple  
+	(*	val _ = connectEdges instrTuple  *) 
 
 	    (* Gets node using label key *)
 		fun getNode label = 
@@ -66,15 +57,31 @@ struct
 		      | NONE => false
 
 		(* Creates all jump edges *)
-		fun connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node) =
+		fun connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node, NONE) =
 		    (case jump of
 		          SOME(labels) => (map 
-		          	(fn label => if(checkNode label) then (G.mk_edge {from=node, to=getNode label}) else ()) 
+		          	(fn label => if(checkNode label) then ((*TextIO.output(out,"JumpConn:"^G.nodename(node)^":"^G.nodename(getNode(label))^"\n");*)G.mk_edge {from=node, to=getNode label}) else ()) 
 		          	labels; ())
 		        | NONE => ())
-		  | connectJumps (_, node) = ()   
+		  
+		 | connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node, SOME(node2)) =
+		    (case jump of
+		          SOME(labels) => (map 
+		          	(fn label => if(checkNode label) then ((*TextIO.output(out,"JumpConn:"^G.nodename(node)^":"^G.nodename(getNode(label))^"\n");*)G.mk_edge {from=node, to=getNode label}) else ()) 
+		          	labels; ())
+		        | NONE => (G.mk_edge({from = node, to=node2})))
+		  | connectJumps (_, node, SOME(node2)) = (G.mk_edge({from= node, to=node2}))
+		  | connectJumps (_, node, NONE) = ()
 
-		val _ = map connectJumps instrTuple
+		(* Creates edge for all non-jump instructions *)
+		fun connectaEdge ((instr1,node1)::[]) = (connectJumps(instr1,node1,NONE))
+		  | connectaEdge ((instr1, node1)::l) = 
+		    let val (instr2, node2) = hd(l)
+		    	 in
+		    	 connectJumps(instr1,node1,SOME(node2)); connectaEdge(l)
+		    end
+
+		val _ = connectaEdge instrTuple
 
 	in
 		(Flow.FGRAPH {control = graph, def = defs,

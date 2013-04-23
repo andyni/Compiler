@@ -18,19 +18,9 @@ structure Assem = struct
 	fun speak(assem,dst,src,jump) =
 	    let val saylab = Symbol.name    
 		fun f(#"`":: #"s":: i::rest) = 
-		    let val myk = List.nth(src, ord i - ord #"0")
-		        val _ = print ("SOURCE "^Temp.makestring(myk)^": ")
-			val _ = print (saytemp(myk)^"\n")
-			in
 		    (explode(saytemp(List.nth(src,ord i - ord #"0"))) @ f rest)
-		        end
 		  | f( #"`":: #"d":: i:: rest) = 
-		    let val myk = List.nth(dst, ord i - ord #"0")
-		        val _ = print ("DEST "^Temp.makestring(myk)^": ")
-			val _ = print (saytemp(myk)^"\n")
-			in
 		    (explode(saytemp(List.nth(dst,ord i - ord #"0"))) @ f rest)
-			end
 		  | f( #"`":: #"j":: i:: rest) = 
 		    (explode(saylab(List.nth(jump,ord i - ord #"0"))) @ f rest)
 		  | f( #"`":: #"`":: rest) = #"`" :: f rest

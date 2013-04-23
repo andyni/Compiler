@@ -13,7 +13,7 @@ struct
 		      		  val compare = Int.compare)
 				 
 
-	fun interferenceGraph (Flow.FGRAPH{control=control, def=def, 
+	fun interferenceGraph (out,Flow.FGRAPH{control=control, def=def, 
 		                               use=use, ismove=ismove}) =
 	    let 
 		fun createLiveSet (SOME(tempList)) = let val t = foldl (fn (temp, currSet) =>
@@ -53,7 +53,7 @@ struct
 			    in
 				Set.union(outS,succSet)
 			    end
-			val outN = foldl (createOutSet)	Set.empty (G.succ(n))
+			val outN = foldl (createOutSet)	defSet (G.succ(n))
 			val newOutMap =G.Table.enter(outMap,n,createLiveSet(SOME(Set.listItems outN)))
 
 			val unchanged = Set.numItems(Set.union(inSet,inN))=Set.numItems(Set.intersection(inSet,inN))
@@ -97,10 +97,11 @@ struct
 		fun edgeCreation (n) =
 		    let val SOME(defL) = G.Table.look(def,n)
 			val SOME(outT,outL) = G.Table.look(foutMap,n)
+			(*val _ = TextIO.output(out, "A NEW NODE \n" )*)
 			fun makeEdges(ndef) = 
 			    map
 		(fn(nde)=>
-			if (nde=ndef) then () else (G.mk_edge{from=getNode(ndef),to=getNode(nde)})) outL
+			if (nde=ndef) then () else ((*TextIO.output(out,("EDGE: "^Temp.makestring(nde)^"-"^Temp.makestring(ndef)^"\n"));*)G.mk_edge{from=getNode(ndef),to=getNode(nde)})) outL
 		    in
 			map (makeEdges) defL
 		    end

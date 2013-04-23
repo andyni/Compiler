@@ -100,7 +100,7 @@ struct
        	| munchStm (Tr.EXP(Tr.CALL(Tr.NAME n,args))) = 
             emit(A.OPER{assem="jal "^(Symbol.name n)^" \n",
                         src=munchArgs(0,args), 
-                        dst=Frame.calldefs, jump=SOME([n])})
+                        dst=Frame.calldefs, jump=NONE})
         
         | munchStm (Tr.EXP(Tr.CALL(e,args))) = 
             emit(A.OPER{assem="jal `s0 \n",
@@ -204,7 +204,7 @@ struct
 
       	| munchExp(Tr.CALL(Tr.NAME name,args)) =
             result(fn r => emit(A.OPER{assem="jal "^(Symbol.name(name))^" \n",
-            src=munchArgs(0,args), dst=Frame.calldefs, jump=SOME([name])}))
+            src=munchArgs(0,args), dst=Frame.calldefs, jump=NONE}))
 
      	  | munchExp(Tr.CALL(e,args)) =
             result(fn r => emit(A.OPER{assem="jal `s0 \n",
@@ -215,7 +215,7 @@ struct
         | munchArgs(i,a::l) =
 	       (if (i<4) then
 	        emit(A.OPER{assem="add $a"^Int.toString(i)^",`s0,$0 \n", 
-	     		            src=[munchExp a], dst=[], jump=NONE})
+	     		            src=[munchExp a], dst=[List.nth(Frame.argregs,i)], jump=NONE})
 	        else emit(A.OPER{assem="sw `s0,"^Int.toString((~4)*i)^"(fp) \n",
 	   		                   src=[munchExp a], dst=[], jump=NONE}); 
 	        munchArgs(i+1,l));

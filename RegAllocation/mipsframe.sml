@@ -30,7 +30,7 @@ val specialregs = [ZERO, SP, FP, RV, RA]
 val argregs = createTempList(4)
 val calleesaves = createTempList(8)
 val callersaves = createTempList(10)
-val calldefs = callersaves @ [RA, RV]
+val calldefs = callersaves @ [RA, RV] @ argregs
 
 val reglist = specialregs @ argregs @ calleesaves @ callersaves
 
@@ -48,7 +48,7 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 							 | NONE => Temp.makestring(temp)
 
 (* list of all register names *)
-val registers = map tempToString (calleesaves @ callersaves @ specialregs @ argregs )
+val registers = map tempToString (callersaves @ calleesaves @ specialregs @ argregs )
 
 
 fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
@@ -107,9 +107,9 @@ fun procEntryExit1 (frame, body) =
 		val save' = map (fn _ => allocLocal(frame)(true)) save
 		val saved = map (moveIn) (ListPair.zip(save, save'))
 		val restored = map (moveOut) (ListPair.zip(save, save'))
-		val body' = seq(saved @ [body] @ restored)
+		val body' = seq(saved @ [viewshift(frame)] @ [body] @ restored)
 	in	
-    	Tree.SEQ(viewshift(frame), body')
+    	   	body'
 	end
 
 fun procEntryExit2 (frame, body) = 

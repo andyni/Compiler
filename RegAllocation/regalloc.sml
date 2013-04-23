@@ -15,8 +15,8 @@ struct
 	type allocation = Frame.register Temp.Table.table
 
 	fun alloc (instrs, frame) = 
-		let val (flowgraph, nodes) = M.instrs2graph(instrs)
-			val (interferencegraph, liveouts) = L.interferenceGraph(flowgraph)
+		let val (flowgraph, nodes) = M.instrs2graph(instrs,TextIO.stdOut)
+			val (interferencegraph, liveouts) = L.interferenceGraph(TextIO.stdOut,flowgraph)
 
 			val Flow.FGRAPH {control=_, def=def, use=use, ismove=_} = flowgraph
 			val L.IGRAPH {graph=_, tnode=_, gtemp=gtemp, moves=_} = interferencegraph

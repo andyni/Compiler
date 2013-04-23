@@ -16,11 +16,9 @@ struct
 	type allocation = MipsFrame.register Temp.Table.table
 	val K = 27
 	fun color{interference, initial, spillCost, registers} = 
-	    let val _ = print "\n PRECOLOREDS2: "
-	        val _ = map (fn(k) => print (Temp.makestring(k)^":"^valOf(Temp.Table.look(initial,k))^",")) Frame.reglist
-		val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
+	    let	val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
 	    	val nodelist = G.nodes(graph)
-		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) nodelist
+
 	    	fun makeWorkList() =
 		    let fun addtolist (node, (list1,list2)) = 
 		        let val prec = Temp.Table.look(initial,gtemp(node))
@@ -35,10 +33,7 @@ struct
 				foldl (addtolist) ([],[]) nodelist
 			end
 		val (simplifyWorklist, spillWorklist) = makeWorkList()
-		val _ = print "\n SIMPLIFY \n"
-		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) simplifyWorklist
-		val _ = print "\n SPILL \n"
-		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) spillWorklist
+
 		fun makeDegreeTable(node,table) =
 		    let val degree = length(G.adj(node))
 		    	in
@@ -88,12 +83,10 @@ struct
 
 		val selectStack = handleSimplification([], degreeTable, simplifyWorklist, spillWorklist)
 
-		val _ = print "\n SELECT \n"
-		val _ = map (fn (a) => print((Temp.makestring(gtemp(a)))^",")) selectStack
 		
 		fun assignColors(node, (colorTable, spillNodes)) =
-		    let val _ = print ("COLORING : "^Temp.makestring(gtemp(node))^"\n")
-			val neighbors = G.adj(node)
+
+			let val neighbors = G.adj(node)
 		    	fun compColor(nbor,reg) = 
 			    	let val col = Temp.Table.look(colorTable,gtemp(nbor))
 				   
