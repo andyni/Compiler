@@ -51,7 +51,7 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 val registers = map tempToString (callersaves @ calleesaves @ specialregs @ argregs )
 
 
-fun string (lab,s) = Symbol.name(lab) ^ ": .asciiz \"" ^ s ^ "\"\n" 
+fun string (lab,s) = Symbol.name(lab) ^ ": \n" ^ ".word " ^ Int.toString(String.size(s)) ^ "\n" ^ ".asciiz \"" ^ s ^ "\"\n" 
 
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
   | exp (InReg(register)) =(fn(expr) => Tree.TEMP(register))
