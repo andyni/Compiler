@@ -27,7 +27,7 @@ struct
   		fun munchStm (Tr.SEQ(stm1, stm2)) = (munchStm stm1; munchStm stm2) 
 
         | munchStm (Tr.LABEL lab) = 
-            emit(A.LABEL{assem=Symbol.name lab ^ ": ",
+            emit(A.LABEL{assem=Symbol.name lab ^ ": \n",
                          lab=lab}) 
 
         (* JUMP *)
