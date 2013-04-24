@@ -15,7 +15,7 @@ val wordSize = 4
 
 fun regsEqual(reg1, reg2) = String.compare(reg1,reg2)=EQUAL
 
-fun getLFormals({name,formals=a::forms,frameoffset}) = (print ("FORMSLENGTH:"^(Int.toString(length(forms))));forms)
+fun getLFormals({name,formals=a::forms,frameoffset}) = (forms)
 
 val ZERO = Temp.newspectemp()
 val SP = Temp.newspectemp()
@@ -50,7 +50,7 @@ fun tempToString(temp) = case Temp.Table.look(tempMap, temp)
 (* list of all register names *)
 val registers = map tempToString (callersaves @ calleesaves @ specialregs @ argregs )
 
-
+(* Formats String assembly *)
 fun string (lab,s) = Symbol.name(lab) ^ ": \n" ^ ".word " ^ Int.toString(String.size(s)) ^ "\n" ^ ".asciiz \"" ^ s ^ "\"\n" 
 
 fun exp (InFrame(k)) = (fn(expr) => Tree.MEM(Tree.BINOP(Tree.PLUS,expr,Tree.CONST(k))))
@@ -62,12 +62,10 @@ fun printacc (InFrame(k)) = print("MEMORY ACCESS : "^Int.toString(k)^"\n")
 
 fun newFrame f = let 
 		val {name=label, formals=formals} = f
-		val _ = print  (Symbol.name(label)^"FORMfSLENGTH:"^(Int.toString(length(formals))))
 		val offset = ref 0
 		fun allocate (escape) = if (escape) then ((offset := !offset - wordSize); InFrame(!offset)) 
 											else (InReg(Temp.newtemp()))
 		val accesses = map allocate formals
-		val _ = print  (Symbol.name(label)^"FORMfaSLENGTH:"^(Int.toString(length(accesses))))
 	in
 	    {name=label, formals=accesses, frameoffset = offset}
 	end
@@ -75,6 +73,7 @@ fun newFrame f = let
 fun name (f:frame) = #name f
 fun forms (f:frame) = #formals f
 
+(* Allocates variable in frame *)
 fun allocLocal f = let val {name = _, formals = _, frameoffset = frameoffset} = f
 		   in
 		       (fn boolean => case boolean of
@@ -82,6 +81,7 @@ fun allocLocal f = let val {name = _, formals = _, frameoffset = frameoffset} = 
 					| false => InReg(Temp.newtemp()))
 		   end			    		
 
+(* For external calls (malloc, initarray) *)
 fun externalCall (s,args) = Tree.CALL(Tree.NAME(Temp.namedlabel s), args) 				    
 
 (* Recursively creates sequence tree *)
@@ -89,6 +89,7 @@ fun seq ([])  = Tree.EXP(Tree.CONST 0)
   | seq ([a]) = a 
   | seq (a::l) = Tree.SEQ(a,seq l)
 
+(* Shifts arguments into frame view *)
 fun viewshift (frame : frame) = 
 	let val formals' = forms frame
 	    fun moveArgs (argReg, access) = Tree.MOVE(exp access (Tree.TEMP FP), Tree.TEMP argReg)
@@ -112,6 +113,7 @@ fun procEntryExit1 (frame, body) =
     	   	body'
 	end
 
+(* For liveness *)
 fun procEntryExit2 (frame, body) = 
     body @
     [Assem.OPER{assem="",
@@ -120,6 +122,7 @@ fun procEntryExit2 (frame, body) =
 
 fun i2s i = if (i<0) then ("-"^Int.toString(~i)) else Int.toString(i)
 
+(* Add final header/epilog to function fragments, setting up frame *)
 fun procEntryExit3 ({name, formals, frameoffset}, body) = 
 	{prolog = ((Symbol.name name) ^ ": sw $fp, -4($sp)\naddi $fp, $sp, -4 \naddi $sp, $sp,"^i2s((!frameoffset)-4)^"\n"),
      body = body,

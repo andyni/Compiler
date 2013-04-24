@@ -14,9 +14,12 @@ struct
 	structure C = Color
 	type allocation = Frame.register Temp.Table.table
 
+	(* Runs the coloring algorithm on the instrs.  Runs Liveness first,
+	then actual coloring algorithm. *)
+
 	fun alloc (instrs, frame) = 
-		let val (flowgraph, nodes) = M.instrs2graph(instrs,TextIO.stdOut)
-			val (interferencegraph, liveouts) = L.interferenceGraph(TextIO.stdOut,flowgraph)
+		let val (flowgraph, nodes) = M.instrs2graph(instrs)
+			val (interferencegraph, liveouts) = L.interferenceGraph(flowgraph)
 
 			val Flow.FGRAPH {control=_, def=def, use=use, ismove=_} = flowgraph
 			val L.IGRAPH {graph=_, tnode=_, gtemp=gtemp, moves=_} = interferencegraph

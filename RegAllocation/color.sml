@@ -15,10 +15,12 @@ struct
 	structure Frame = MipsFrame
 	type allocation = MipsFrame.register Temp.Table.table
 	val K = 27
+	(* Given the interference graph, assigns registers to every node *)
 	fun color{interference, initial, spillCost, registers} = 
 	    let	val Liveness.IGRAPH{graph,tnode,gtemp,moves} = interference
 	    	val nodelist = G.nodes(graph)
-
+		
+		(* Creates the 2 worklists, simplify and spill *)
 	    	fun makeWorkList() =
 		    let fun addtolist (node, (list1,list2)) = 
 		        let val prec = Temp.Table.look(initial,gtemp(node))
@@ -34,6 +36,7 @@ struct
 			end
 		val (simplifyWorklist, spillWorklist) = makeWorkList()
 
+		(* Makes a table with the degree of every node *)
 		fun makeDegreeTable(node,table) =
 		    let val degree = length(G.adj(node))
 		    	in
@@ -42,10 +45,12 @@ struct
 
 		val degreeTable = foldl (makeDegreeTable) G.Table.empty (simplifyWorklist @ spillWorklist)
 
-
+		(* Removes a temp from a worklist *)
 		fun removeElem(list,item) =
 		    List.filter (fn(x)=>(gtemp(x)<gtemp(item) orelse gtemp(x)>gtemp(item))) list
 
+		(* Simplifies a node.  Decrements all neighboring degees,
+		and adjusts worklists accordingly *)
 		fun simplifyNode(node, selectStack, degreeTable, simplifyWorklist, spillWorklist)=
 		    let val neighbors = G.adj(node)
 		        val nsimplify' = removeElem(simplifyWorklist,node)
@@ -66,6 +71,8 @@ struct
 				(nselect,ndegree,nsimplify,nspill)
 			end
 
+		(* Spills a node.  Picks the best node, and simplifies it,
+		may not be able to be colored later. *)
 		fun spillNode(selectStack, degreeTable, simplifyWorkList,node::spillWorklist)=
 		    let fun bestnode(n,bestn) = if (spillCost(n)>spillCost(bestn)) then n else bestn		    				
 		    	val bestN = foldl (bestnode) node spillWorklist
@@ -75,6 +82,7 @@ struct
 				simplifyNode(bestN, selectStack, degreeTable, simplifyWorkList, nspill)
 			end
 
+		(* Runs simplification/spilling on all nodes *)
 		fun handleSimplification(selectStack, degreeTable, [], []) = selectStack 
 		    | handleSimplification(selectStack, degreeTable, [], spillWorklist) =
 						      handleSimplification(spillNode(selectStack, degreeTable, [], spillWorklist))
@@ -83,7 +91,9 @@ struct
 
 		val selectStack = handleSimplification([], degreeTable, simplifyWorklist, spillWorklist)
 
-		
+		(* Given the Select Stack, colors all nodes.  Some nodes
+		may not be able to be colored, put these in spill list and 
+		continue on *)
 		fun assignColors(node, (colorTable, spillNodes)) =
 
 			let val neighbors = G.adj(node)

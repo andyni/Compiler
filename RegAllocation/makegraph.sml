@@ -4,7 +4,8 @@ struct
 	structure G = Flow.Graph
 	structure S = Symbol
 
-	fun instrs2graph (instrs,out) = 
+	(* Translates instruction list to graph *)
+	fun instrs2graph (instrs) = 
 	let 
 		val graph = G.newGraph()
 		val nodelist = map (fn _ => G.newNode(graph)) instrs
@@ -13,19 +14,19 @@ struct
 		(* Creates def, use, and ismove tables *)
 		fun parseInstructions ((A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node), 
 							   (defs, uses, ismoves, labeltonode)) =	
-			 (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)(G.Table.enter(defs, node, dst),
+			 (G.Table.enter(defs, node, dst),
 			 G.Table.enter(uses, node, src),
 			 G.Table.enter(ismoves, node, false),
 			 labeltonode)		   
 		  | parseInstructions ((A.LABEL{assem=assem, lab=lab}, node), 
 		                       (defs, uses, ismoves, labeltonode))=
-			 (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)(G.Table.enter(defs, node, []),
+			 (G.Table.enter(defs, node, []),
 			 G.Table.enter(uses, node, []),
 			 G.Table.enter(ismoves, node, false),
 			 S.enter(labeltonode, lab, node))		  
 		  | parseInstructions ((A.MOVE{assem=assem, dst=dst, src=src}, node), 
 		  					   (defs, uses,ismoves, labeltonode)) =
-			  (*TextIO.output(out,G.nodename(node)^" IS FOR "^assem^"\n");*)	(G.Table.enter(defs, node, [dst]),
+			 (G.Table.enter(defs, node, [dst]),
 			 G.Table.enter(uses, node, [src]),
 			 G.Table.enter(ismoves, node, true),
 			 labeltonode)
@@ -33,16 +34,6 @@ struct
 		val (defs, uses, ismoves, labeltonode) = foldl parseInstructions 
 			(G.Table.empty, G.Table.empty, G.Table.empty, S.empty) 
 			instrTuple
-
-		(* Creates edge for all non-jump instructions *)
-		fun connectEdges (a::[]) = ()
-		  | connectEdges ((instr1, node1)::l) = 
-		    let val (instr2, node2) = hd(l)
-		    	 in
-		    	G.mk_edge({from= node1, to=node2}); connectEdges(l)
-		    end
-
-	(*	val _ = connectEdges instrTuple  *) 
 
 	    (* Gets node using label key *)
 		fun getNode label = 
@@ -56,24 +47,24 @@ struct
 				SOME(node) => true
 		      | NONE => false
 
-		(* Creates all jump edges *)
+		(* Creates all edges *)
 		fun connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node, NONE) =
 		    (case jump of
 		          SOME(labels) => (map 
-		          	(fn label => if(checkNode label) then ((*TextIO.output(out,"JumpConn:"^G.nodename(node)^":"^G.nodename(getNode(label))^"\n");*)G.mk_edge {from=node, to=getNode label}) else ()) 
+		          	(fn label => if(checkNode label) then (G.mk_edge {from=node, to=getNode label}) else ()) 
 		          	labels; ())
 		        | NONE => ())
 		  
 		 | connectJumps (A.OPER{assem=assem, dst=dst, src=src, jump=jump}, node, SOME(node2)) =
 		    (case jump of
 		          SOME(labels) => (map 
-		          	(fn label => if(checkNode label) then ((*TextIO.output(out,"JumpConn:"^G.nodename(node)^":"^G.nodename(getNode(label))^"\n");*)G.mk_edge {from=node, to=getNode label}) else ()) 
+		          	(fn label => if(checkNode label) then (G.mk_edge {from=node, to=getNode label}) else ()) 
 		          	labels; ())
 		        | NONE => (G.mk_edge({from = node, to=node2})))
 		  | connectJumps (_, node, SOME(node2)) = (G.mk_edge({from= node, to=node2}))
 		  | connectJumps (_, node, NONE) = ()
 
-		(* Creates edge for all non-jump instructions *)
+		(* Creates edge for all instructions *)
 		fun connectaEdge ((instr1,node1)::[]) = (connectJumps(instr1,node1,NONE))
 		  | connectaEdge ((instr1, node1)::l) = 
 		    let val (instr2, node2) = hd(l)
