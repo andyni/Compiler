@@ -17,7 +17,7 @@ structure F : FRAME = MipsFrame
 	       val (instrs', allocation) = RegAlloc.alloc (instrs, frame)
  	       val format0 = Assem.format(fn(temp)=>
 	       	   case Temp.Table.look(allocation, temp) of SOME(reg) => reg
-							   | NONE => ("BADREG:"^Temp.makestring(temp)))
+							   | NONE => ErrorMsg.impossible "Requires spilling.")
          val {prolog, body=body', epilog} = F.procEntryExit3(frame, instrs')
 	    in  
 	    	 TextIO.output(out, prolog);
