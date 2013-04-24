@@ -148,13 +148,20 @@ struct
 	      (* If else' exists, its type should match then'. Otherwise, then' should be unit. *)
 	      | trexp(Absyn.IfExp{test, then', else', pos}) = 
 		let val {exp=thenexp, ty=tythen} = trexp then'
-	            val {exp=elseexp, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
-	      	    val {exp=testexp, ty= tytest} = trexp test
-		    val _ = print "GOT THE IF EXP"
+	        val {exp=elseexp, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
+	      	val {exp=testexp, ty= tytest} = trexp test
+		    fun checkTypes (type1, type2) = (case (type1,type2) of
+			     (Types.INT, Types.INT) => true
+			   | (Types.STRING, Types.STRING) => true
+			   | (Types.UNIT, Types.UNIT) => true
+			   | (Types.RECORD(_), Types.RECORD(_)) => true
+		       | (Types.RECORD(_), Types.NIL) => true
+			   | (Types.NIL, Types.RECORD(_)) => true
+		       | _ => false)
 		in
 		    checkInt({exp=testexp, ty=tytest}, pos);
 		    case else' of  
-			SOME(else') => (if (tyelse = tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elseexp)), ty=tythen})
+			SOME(else') => (if checkTypes(tyelse,tythen) then () else ErrorMsg.error pos "Type mismatch in if statement"; {exp=(Tr.ifstm(testexp,thenexp,elseexp)), ty=tythen})
                       | NONE => (if (tythen = Types.UNIT) then () else ErrorMsg.error pos "Unit required"; {exp=Tr.iftstm(testexp,thenexp), ty=Types.UNIT})
 
 		end
