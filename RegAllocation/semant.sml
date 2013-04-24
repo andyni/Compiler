@@ -176,19 +176,20 @@ struct
 	      | trexp(Absyn.ForExp{var, escape, lo, hi, body, pos})=
 	        (breakLevel:=(!breakLevel)+1;
 		let 
-		    val mylevel = Tr.newLevel({parent=level, name=Temp.newlabel(), formals=[true]})
-	      	    val access = Tr.allocLocal(mylevel)(!escape)
+			val forlabel = Temp.newlabel();
+		    val mylevel = Tr.newLevel({parent=level, name=forlabel, formals=[true]})
+	      	val access = Tr.allocLocal(mylevel)(!escape)
 		    val venv' = Symbol.enter(venv, var, Env.VarEntry{ty=Types.INT, access=access})
-		    val lo' = trexp lo
-		    val hi' = trexp hi
 		    val breaklabel = Temp.newlabel()
+		    val lo' = transExp(venv,tenv,lo,mylevel,breaklabel)
+		    val hi' = transExp(venv,tenv,hi,mylevel,breaklabel)
 		    val {exp=body', ty=ty1} = transExp(venv',tenv,body,mylevel,breaklabel) 
 		in 
 		    checkInt(lo', pos);
 		    checkInt(hi', pos);
 		    if (ty1 = Types.UNIT) then () else ErrorMsg.error pos "Unit Required in for loop";
 		    breakLevel:=(!breakLevel)-1;
-      		    {exp=Tr.forexp(Tr.simpleVar(access,mylevel), #exp lo', #exp hi', body', breaklabel), ty=Types.UNIT}
+      		    {exp=Tr.forexp(Tr.simpleVar(access,mylevel), #exp lo', #exp hi', body', breaklabel,level,mylevel,forlabel), ty=Types.UNIT}
 		end)
 		
 	      (* Checks if array type matches initial value *)

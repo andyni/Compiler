@@ -32,7 +32,7 @@ sig
     val intexp : int -> exp
     val strexp : string -> exp
     val whileexp : exp * exp * Temp.label -> exp
-    val forexp : exp * exp * exp * exp * Temp.label -> exp
+    val forexp : exp * exp * exp * exp * Temp.label * level * level * Temp.label -> exp
     val breakexp : Temp.label -> exp
     val functiondecwresult : level * exp -> unit
     val functiondecworesult : level * exp -> unit

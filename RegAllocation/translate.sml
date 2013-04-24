@@ -128,7 +128,7 @@ struct
 
   (* Converts simple, subscript, and field variables to IR*)
   fun fieldVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), T.CONST(offset*F.wordSize))))
-  fun subVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), T.BINOP(T.MUL, T.CONST(F.wordSize), unEx(offset)))))    	  
+  fun subVar (exp, offset) = Ex(T.MEM(T.BINOP(T.PLUS, unEx(exp), T.BINOP(T.MUL, T.CONST(F.wordSize), T.BINOP(T.PLUS, T.CONST(1), unEx(offset))))))    	  
   fun simpleVar (access, level) = 
       let val (definitionlevel, acc) = access
       in	
@@ -229,25 +229,7 @@ struct
 	  ])
       end
 
-  (* Translates for loop to IR *)
-  fun forexp (var, lo, hi, body, break) = 
-      let val bodylabel = Temp.newlabel()
-	  val testlabel = Temp.newlabel()
-	  val var' = unEx var
-	  val lo' = unEx lo
-	  val hi' = unEx hi
-      in
-	  Nx(seq [T.MOVE(var', lo'),
-		   T.CJUMP(T.LE, var', hi', bodylabel, break),
-		   T.LABEL(bodylabel),
-		   unNx(body),
-		   T.CJUMP(T.LT, var', hi', testlabel, break),
-		   T.LABEL(testlabel),
-		   T.MOVE(var', T.BINOP(T.PLUS, var', T.CONST(1))),
-		   T.JUMP(T.NAME bodylabel, [bodylabel]), 
-		   T.LABEL(break)
-	    ])
-      end
+
 
   fun procEntryExit {level=level, body=body} = 
       let val InnerLevel({frame=frame,...}) = level
@@ -262,4 +244,26 @@ struct
   (* Translates function declaration to IR *)
   fun functiondecwresult (level, body) = procEntryExit({level=level,body=Nx(T.MOVE(T.TEMP F.RV,unEx(body)))})
   fun functiondecworesult (level, body) = procEntryExit({level=level,body=body})					       
+
+  (* Translates for loop to IR *)
+  fun forexp (var, lo, hi, body, break,level,mylevel,forlabel) = 
+      let val bodylabel = Temp.newlabel()
+    val testlabel = Temp.newlabel()
+    val var' = unEx var
+    val lo' = unEx lo
+    val hi' = unEx hi
+
+      in
+    functiondecworesult(mylevel, Nx(seq [T.MOVE(var', lo'),
+       T.CJUMP(T.LE, var', hi', bodylabel, break),
+       T.LABEL(bodylabel),
+       unNx(body),
+       T.CJUMP(T.LT, var', hi', testlabel, break),
+       T.LABEL(testlabel),
+       T.MOVE(var', T.BINOP(T.PLUS, var', T.CONST(1))),
+       T.JUMP(T.NAME bodylabel, [bodylabel]), 
+       T.LABEL(break)
+      ]));
+      funcall([Ex(T.TEMP F.FP)],forlabel,level,mylevel)
+      end
 end

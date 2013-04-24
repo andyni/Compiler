@@ -42,8 +42,8 @@ struct
     | traverseExp(env:escEnv, d:depth, Absyn.ForExp {var, escape, lo, hi, body, pos}) : unit = 
       let val env' = (escape:=false; Symbol.enter(env, var, (d, escape)))
       in
-	  (traverseExp(env, d, lo);
-	   traverseExp(env, d, hi);
+	  (traverseExp(env, d+1, lo);
+	   traverseExp(env, d+1, hi);
 	   traverseExp(env', d+1, body)) 
       end
       
