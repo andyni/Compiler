@@ -3,16 +3,12 @@ struct
 structure F : FRAME = MipsFrame
 
    fun emitproc out (F.PROC{body,frame}) =
-     let val _ = print ("emit "^ Symbol.name(F.name frame) ^ "\n")
+     let 
 	       val stms = Canon.linearize body
  
          val stms' = Canon.traceSchedule(Canon.basicBlocks stms)
     	   val instrss =   List.concat(map (MipsGen.codegen frame) stms') 
      	   val instrs = F.procEntryExit2(frame, instrss)
-
-         (*val _ = app (fn s => Printtree.printtree(out,s)) stms; *)
-	       val (ginstr,l) =  Makegraph.instrs2graph(instrs,out)
-	       val (intgraph,extl) = Liveness.interferenceGraph(out,ginstr)
 
 	       val (instrs', allocation) = RegAlloc.alloc (instrs, frame)
  	       val format0 = Assem.format(fn(temp)=>

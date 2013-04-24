@@ -150,7 +150,7 @@ struct
 		let val {exp=thenexp, ty=tythen} = trexp then'
 	            val {exp=elseexp, ty=tyelse} = trexp (getOpt(else', Absyn.IntExp(0)))
 	      	    val {exp=testexp, ty= tytest} = trexp test
-		    val _ = print "GOT THE IF EXP"
+		    
 		in
 		    checkInt({exp=testexp, ty=tytest}, pos);
 		    case else' of  
@@ -267,7 +267,7 @@ struct
 	    (* Looks in venv for variable type mapping. *)
 	    and trvar (Absyn.SimpleVar(id,pos)) = 
 		(case Symbol.look(venv,id)
-	          of SOME(Env.VarEntry{ty,access}) => (print ("Variable "^ Symbol.name id ^"\n"); {exp=(Tr.simpleVar(access,level)), ty=getnamedty ty})
+	          of SOME(Env.VarEntry{ty,access}) => ({exp=(Tr.simpleVar(access,level)), ty=getnamedty ty})
 		   | _ => (ErrorMsg.error pos ("Undefined variable " ^ Symbol.name id); {exp=(Tr.NIL), ty=Types.BOTTOM}))
 
 	      (* Record field variables *)
@@ -309,7 +309,7 @@ struct
   
     (* Enters variables with no type dec into venv*)
     and transDec (venv,tenv,Absyn.VarDec{name,typ=NONE,init,pos,escape}, level, break) =
-	let val _ = print ("A VAR DEC "^Symbol.name name)
+	let 
 	    val {exp,ty} = transExp(venv,tenv,init,level,break)
 	    val access = Tr.allocLocal(level)(!escape)
 	in
@@ -318,7 +318,7 @@ struct
 	end
       (* Enters variables with type dec into venv *)
       | transDec (venv,tenv,Absyn.VarDec{name,typ=SOME(rt,pos1),init,pos,escape}, level, break)=
-      	let val _ = print ("A VAR DEC "^Symbol.name name)
+      	let 
 	    val type1 = getnamedty(getTyOption(Symbol.look(tenv,rt),pos,("Declared type of variable "^Symbol.name rt^" does not exist")))
 	    val {exp,ty=type2} = transExp(venv,tenv,init,level,break) 
 	    val access = Tr.allocLocal(level)(!escape)
@@ -391,8 +391,7 @@ struct
 
 	         val params' = map transparam params
 		 val paramesc = foldl (fn({name, escape, typ, pos},ans)=>(!escape :: ans)) [] params
-		 val _ = print ("PRMSLENGTH:"^(Int.toString(length(params))))
-		 val _ = print ("PRMELENGTH:"^(Int.toString(length(paramesc))))
+
 		 val funlabel = Temp.newlabel()
 	         val venv' = Symbol.enter(venv,name,Env.FunEntry{formals =map #ty params', result=getnamedty(result_ty), level=Tr.newLevel{parent=level,name=funlabel,formals=(true::paramesc)}, label = funlabel})
 	     in
@@ -421,11 +420,7 @@ struct
 		       val myformals = Tr.getLFormals(mylevel)
 		       val formparam = ListPair.zipEq(myformals,params')
 	    	       fun enterparam((acc,{name,ty,escape}),venv2) = 
-		       let
-		       	   val _ = Tr.printacc(acc)
-		       in
 		       	    Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=acc})
-		       end
 		       val venv'' = foldr (enterparam) venv formparam
 		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		       
@@ -448,11 +443,7 @@ struct
 	    	       val myformals = Tr.getLFormals(mylevel)
 		       val formparam = ListPair.zip(myformals,params')
    	       	       fun enterparam((acc,{name,ty,escape}),venv2) = 
-		       	   let  
-		       	        val _ = (print ("PARAM NAME : "^Symbol.name name); Tr.printacc(acc))
-		      	        in
 		       	   	   Symbol.enter(venv2, name,Env.VarEntry{ty=ty, access=acc})
-	  		        end
 		       val venv'' = foldr enterparam venv formparam
 		       val {exp=bodyexp, ty=tytrans} = transExp(venv'',tenv,body,mylevel,break)
 		    in

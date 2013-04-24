@@ -19,7 +19,8 @@ struct
   type frag = F.frag
 
   fun printacc(level,access) = F.printacc(access)
-			    
+
+  (* Get the formals associated with the level *)			    
   fun getLFormals(mylevel) = let val InnerLevel{parent,frame,id} = mylevel
    in 
       map (fn(l) => (mylevel,l)) (F.getLFormals(frame))
@@ -35,7 +36,7 @@ struct
 
   (* Creates a new level *)
   fun newLevel {parent = lev, name = label, formals = formlist} = 
-  	(print  (Symbol.name(label)^"FORMaSLENGTH:"^(Int.toString(length(formlist))));InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()})
+  	(InnerLevel{parent = lev, frame = F.newFrame({name = label, formals = formlist}), id = ref ()})
 
   (* Recursive creates sequence tree *)
   fun seq ([])  = T.EXP(T.CONST 0)
